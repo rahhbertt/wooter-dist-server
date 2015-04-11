@@ -49,7 +49,7 @@ function flush_user($user_obj){
 	global $PORT_NUM;
 	return real_flush_user($user_obj, $PORT_NUM);
 }
-
+ 
 function read_user($username){
 	/*
 	read_user() takes in a username string, then finds it in the user file base and returns its user object.
