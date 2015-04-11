@@ -1,0 +1,73 @@
+<doctype! html>
+<html>
+     <head>
+          <title> Wooter </title>
+          <meta charset="UTF-8"> 
+     </head>
+            <font size=""6> <---- Wooter ----> </font>           
+<style>
+pic1{
+	float:left;
+	clear:none;
+	width: 100px;
+	margin-right: 250px;
+}
+pic2{
+	float: right;
+	clear: none;
+	width: 100px;
+	margin-left: 250px;
+}
+mainContent{
+	float: none;
+	clear: left;
+	clear: right;
+	margin-left: auto;
+	margin-right: auto;
+	width: 600px;
+	
+}
+header{
+	width: 100%;
+}
+
+</style>
+
+	<body>
+	<header>
+		<pic1> <img src="http://www.miicard.com/sites/default/files/content/blog_twitter_fake.png"> </pic1>
+		<pic2> <img src="http://www.miicard.com/sites/default/files/content/blog_twitter_fake.png">  </pic2>
+	</header>
+	<mainContent>
+          <a name="TO DO" id="TO DO"> </a>
+	
+          <h1> Things to implement:</h1>
+          <h3> 
+               <ul>
+                    <li> Nicer html mock up </li>
+                    <li> Basic login input to php </li>
+                    <li> Basic user registration/login/file</li>
+                    <li> <a href="http://www.poly.edu">Links to FAQ, support, registration page</a>. </li>
+                    <li> How about some input fields and forms? </li>
+               </ul>
+          </h3>
+          <form action="basic_01.php" method="post">
+               Full name: <input type="text" name="full_name"><p>
+               Age: <input type="number" name="age"><p>
+               Email: <input type="text" name="email"><p>
+               <input type="checkbox" name="subscribe" checked> I would like to subscribe to email updates and notifications.<p>
+               <input type="checkbox" name="spam" checked> I would also like to subscribe to offers and sales material from third party vendors.<p>
+               <input type="submit" value="Submit">
+
+
+
+          </form>
+
+	</mainContent>
+     </body>     
+
+</html>
+
+
+
+

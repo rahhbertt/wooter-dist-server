@@ -1,0 +1,59 @@
+<doctype! html>
+<html>
+<head>
+     <style>
+          body{
+               background-image: url("wooter.png"), url("wooter.png"), url("blue.jpg");
+               background-position: top, right, top 350px left -90px;
+               background-repeat: repeat-x, repeat-y, no-repeat;
+               text-align: center;
+               background-attachment: fixed;
+          }
+          .tcenter { text-align: center; }
+          .tcolor { background: rgba(255,255,255,0.8); }
+          .button:hover { background: cyan; cursor: pointer; }
+     </style>
+     <title> 
+          Register An Account with Wooter
+     </title>
+     <meta charset="UTF-8">
+</head>
+
+<body>
+     <table border="0" align="center" class="tcenter tcolor" style="margin-top:130px">
+          <tr>
+               <td>
+                    <font size="4">
+                         <b>Congratulations</b> on making the right decision in joining Wooter!<br>
+                         You'll be joining thousands of other individuals part of a growing <br>trend toward decentralized, privacy-sensitive social media. <br>
+                    </font>
+               </td>
+          </tr>
+     </table>
+
+     <table border="0" align="center" class="tcenter tcolor" style="margin-top:30px">
+          <tr>
+               <td>
+                    <form action="register.php" method="post">
+                         First name: <input type="text" name="first_name" align="right"><p></p>
+                         Last name: <input type="text" name="last_name"><p></p>
+                         Age: <input type="number" name="age"><p></p>
+                         Email: <input type="email" name="email"><p></p><br>
+                    </td>
+               </tr>
+          </table>
+          <table border="0" align="center" class="tcenter tcolor">
+               <tr>
+                    <td>
+                         Please choose a username: <input type="text" name="username"> <p></p>
+                         Please create a password: <input type="password" name="password"><p></p>
+                         Please re-enter your password: <input type="password" name="re_password"><p></p>
+                         <input type="checkbox" name="subscribe" checked> I would like to subscribe to email updates and notifications.<p></p>
+                         <input type="checkbox" name="spam" checked> I would also like to subscribe to offers and sales material from third party vendors.<p></p>
+                         <input type="submit" class="button" value="Sign up for Wooter">
+                    </form>
+               </td>
+          </tr>
+     </table>
+</body>
+</html>

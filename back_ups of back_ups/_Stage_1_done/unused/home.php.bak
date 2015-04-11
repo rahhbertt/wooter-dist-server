@@ -1,0 +1,137 @@
+<doctype! html>
+<html>
+
+
+<?php
+// INCLUDE OF CUSTOM CLASS MUST COME BEFORE SESSION START OR WONT KNOW HOW TO 
+// DESERIALIZE IT
+include 'includes.php';
+session_start();
+$current_user=$_SESSION['valid_user'];
+if(!isset($current_user->username)){
+	echo "Sorry, please login and then use this page.";
+	exit;
+}
+// CANNOT ECHO SESSION VARS DIRECTLY
+//print_r($_POST['valid_user']);
+
+// LOG OUT BUTTON
+
+// ADD THIS CHECK TO EACH PAGE ONLY FOR LOGGED INF OLK
+
+?>
+
+
+
+<head>
+<style>
+body {
+	background: url(../wooter.png), url(../blue.jpg);
+	background-repeat: repeat-y, no-repeat;
+	text-align: center;
+	background-position: right,  bottom left;
+
+}
+.left {
+	float: left;
+}
+.right {
+	float: right;
+}
+.submit {
+	    float: left;
+}
+.submit:hover {
+	    background: cyan;
+	    cursor: pointer;
+}
+
+</style>
+	<title> Welcome to your Wooter home page! </title> 
+	<meta charset="UTF-8"> 
+</head>
+<body>
+
+      
+<form class="submit" action="logout.php" method="post">
+       <?php echo "$current_user->username";?>
+       <input class="submit" type="submit" value="Log out">
+       <!-- move the logout buttont to the right of username -->
+       <!-- code for IF SESSION VAR "Log out" is set, then do log out procedure-->
+       <!-- auto redirect to next page-->
+</form>
+
+
+<p>
+	Welcome to your Wooter Home Page.
+</p>
+
+<p class="left"> Your Followers: 
+<table>
+	<table>
+	<tr>
+	    <td><a href="home.php?user=skeetskeetska3aaa">Follower_1_Username</a></td>
+	    <td><font size="2"> F_1_Full_Name </font> </td> 
+	    <td><font size="2" color="grey"> F_1_age </font></td>
+	</tr>
+	<tr>
+	    <td><i>F_1_recent_woot</i></td>
+	</tr>
+	</table>
+
+	<table>
+	<tr>
+	    <td>Follower_2_Username</td>
+	    <td><font size="2"> F_2_Full_Name </font> </td> 
+	    <td><font size="2" color="grey"> F_2_age </font></td>
+	</tr>
+	<tr>
+	    <td><i>F_2_recent_woot</i></td>
+	</tr>
+	</table>
+
+</table>
+</p>
+
+<p class="right"> Users You're Following: 
+<table>
+<tr>
+  	<table>
+	<tr>
+	    <td>Followee_1_Username</td>
+	    <td><font size="2"> F_1_Full_Name </font> </td> 
+	    <td><font size="2" color="grey"> F_1_age </font></td>
+	</tr>
+	<tr>
+	    <td><i>F_1_recent_woot</i></td>
+	</tr>
+	</table>
+
+	<table>
+	<tr>
+	    <td>Followee_2_Username</td>
+	    <td><font size="2"> F_2_Full_Name </font> </td> 
+	    <td><font size="2" color="grey"> F_2_age </font></td>
+	</tr>
+	<tr>
+	    <td><i>F_2_recent_woot</i></td>
+	</tr>
+	</table>
+</table>
+</p>
+
+
+<!--
+	<p>
+		Here are some users you might find interesting:
+	</p> -->
+<?php
+// for the first 10 random users (random # for line # from arrays)
+// list username as a link to their web page, which is $username.html
+?>
+
+
+
+
+</body>
+</html>

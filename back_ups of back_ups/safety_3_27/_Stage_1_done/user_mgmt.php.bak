@@ -1,0 +1,551 @@
+<doctype! html>
+<html>
+<head></head>
+<body>
+	<?php
+	class User{
+		public $username, $password, $id, $full_name, $age, $email;
+		public $followers, $followees, $free_bit;
+		// add privacy here?
+	}
+	// the following max values are hard coded into registration.html to not have to change it to .php
+	$MIN_USER_LEN=8;	$MAX_USER_LEN=24+1; 
+	$MIN_PWD_LEN=10;	$MAX_PWD_LEN=32+1; 
+	$MAX_ID_LEN=10+1; // at most 10 digits for the # of users
+	$MAX_FNM_LEN=25;	$MAX_LNM_LEN=25+1;	$MAX_EML_LEN=100+1;
+	// age is hardcoded to 4, 3 digits + 1 pad
+	$MAX_FLR_LEN=10+1;	$MAX_FLE_LEN=10+1; // at most 10 digits for the # of followees
+	$MAX_ULINE_LEN=$MAX_USER_LEN+$MAX_PWD_LEN+$MAX_ID_LEN+$MAX_FNM_LEN+1+$MAX_LNM_LEN+4+$MAX_EML_LEN+$MAX_FLR_LEN+$MAX_FLE_LEN+1+1;
+	$USERS_PER_FILE=10;		$FID_HDR_LEN=5;		$FLRS_PER_LINE=10;
+	$MAX_FLR_LINE_LEN=($MAX_ID_LEN*$FLRS_PER_LINE)+1;
+	$MY_DELIMITER=".";
+
+function flush_user($file_handle, $user_obj, $offset){
+	/*
+	flush_user() writes the attributes of $user_obj one by one into the file $file_handle
+	at the offset $offset. Each attribute is padded to meet its maximum field size
+	so that each field, line, and user file are of a fixed, constant size.
+	*/
+	global $MAX_USER_LEN, $MAX_PWD_LEN, $MAX_ID_LEN, $MAX_FNM_LEN, $MAX_LNM_LEN, $MAX_EML_LEN, $MAX_FLE_LEN, $MAX_FLR_LEN, $FID_HDR_LEN;
+	$u_file=$file_handle;
+	fseek($file_handle, $offset, SEEK_SET);
+	fwrite($u_file, str_pad($user_obj->username, $MAX_USER_LEN, "."));
+	fwrite($u_file, str_pad($user_obj->password, $MAX_PWD_LEN, "."));
+	fwrite($u_file, str_pad($user_obj->id, $MAX_ID_LEN, "."));
+	fwrite($u_file, str_pad($user_obj->full_name, $MAX_FNM_LEN+$MAX_LNM_LEN+1, "."));
+	fwrite($u_file, str_pad($user_obj->age, 4, "."));
+	fwrite($u_file, str_pad($user_obj->email, $MAX_EML_LEN, "."));
+	fwrite($u_file, str_pad($user_obj->followers, $MAX_FLR_LEN, "."));
+	fwrite($u_file, str_pad($user_obj->followees, $MAX_FLE_LEN, "."));
+	fwrite($u_file, "n");
+	echo "It is being written that the user: $user_obj->username has $user_obj->followers followers and $user_obj->followees followees<br>";
+}
+
+function create_new_user($user_obj){	
+	global $MAX_USER_LEN, $MAX_PWD_LEN, $MAX_ID_LEN, $MAX_FNM_LEN, $MAX_LNM_LEN, $MAX_EML_LEN, 
+	$MAX_FLE_LEN, $MAX_FLR_LEN, $FID_HDR_LEN, $USERS_PER_FILE, $MAX_ULINE_LEN;
+	$file_number=0;
+	$user_id=-1;
+	while($file_number!=-1){
+		$file_name="fids/fid_".$file_number.".txt";
+		$current_offset=0;
+		if(!file_exists($file_name)){ // if checked all free_ids list, and no free ids, make a new one
+			$user_id=$file_number*$USERS_PER_FILE;
+			//
+			create_file("users", $file_number, 0);
+			$u_file=fopen("users/u_".$file_number.".txt", "r+") or die("Could not open file: users/u_".$file_number.".txt");
+			$user_obj->id=$user_id;
+			$user_obj->followers=0;
+			$user_obj->followees=0;
+			flush_user($u_file, $user_obj, 0);
+			fclose($u_file);
+			//
+			create_file("free_ids", $file_number, 0);
+			$fid_file=fopen($file_name, "r+") or die("Could not open file: ".$file_name);
+			fseek($fid_file, ($FID_HDR_LEN+1) ); // goes to first user ID spot since just made the file
+			fwrite($fid_file, "n"); 
+			//
+			return $user_id;
+		}
+		else { // for every free_id file that exists
+			$fid_file=fopen($file_name, "r+") or die("Could not open file: ".$file_name);
+			$header=(int)trim(fread($fid_file, $FID_HDR_LEN+1), ".");
+			//~ echo "<br> header value" . $header."<br>";
+			$current_id=0;
+			if($header!=0){ // if it has any free ids, linearly scan for first one
+				while(!feof($fid_file)){ 
+					$current_bit=fread($fid_file, 2);
+//~ CUT OUT THIS DEBUGGING LINE 
+//~ output error if find no free idea somehow??
+					//~ echo "<br> current bit: " . $current_bit ." <br>";
+					if($current_bit=="f."){
+						fseek($fid_file, -2, SEEK_CUR);
+						fwrite($fid_file, "n.");
+						fseek($fid_file, 0);
+						$header=$header-1;
+						fwrite($fid_file, str_pad($header, $FID_HDR_LEN, "."));
+						fclose($fid_file);
+						$u_file=fopen("users/u_".$file_number.".txt", "r+") or die("Could not open file: users/u_".$file_number.".txt");
+						$user_obj->id=$current_id+($USERS_PER_FILE*$file_number);
+//~ CUT OUT THIS DEBUGGING LINE 
+						//~ echo "<br> user id:" .$user_obj->id. "\t$MAX_ULINE_LEN <br>";
+						$user_obj->followers=0;
+						$user_obj->followees=0;
+						flush_user($u_file, $user_obj, ($current_id)*$MAX_ULINE_LEN);
+						fclose($u_file);
+						//
+						return true;
+					}
+					$current_id+=1;
+				}
+			}
+			else { // there are no free ids, check next file
+				$file_number+=1;
+				continue;
+			}
+		}
+	}
+}
+
+function read_user($username){
+	global $MAX_USER_LEN, $MAX_PWD_LEN, $MAX_ID_LEN, $MAX_FNM_LEN, $MAX_LNM_LEN, $MAX_EML_LEN, $MAX_FLE_LEN, $MAX_FLR_LEN, $FID_HDR_LEN,
+	$MAX_ULINE_LEN, $USERS_PER_FILE;
+	$file_number=0;
+	while($file_number>-1){
+		//~ echo "file num " . $file_number . "<br>";
+		$file_name="users/u_".$file_number.".txt";
+		if(file_exists($file_name)){
+			$user_base=fopen($file_name, 'r+') or die("Unable to open file:".$file_name);
+			//~ echo "currentZ Zuname: $read_uname<br> current pos in file: ". ftell($user_base) . "<br>";
+			while(ftell($user_base)<$USERS_PER_FILE*$MAX_ULINE_LEN){
+				$read_uname=trim(fread($user_base, $MAX_USER_LEN), ".");
+								//~ $file_number++;
+				if($read_uname == $username){
+					//~ echo "currentZ Zuname: $read_uname<br> current pos in file: ". ftell($user_base) . "<br>";
+					fseek($user_base, $MAX_ULINE_LEN-$MAX_USER_LEN-2, SEEK_CUR);
+								//~ echo "currentZ Zuname: $read_uname<br> current pos in file: ". ftell($user_base) . "<br>";
+					$is_free=fread($user_base, 1);
+					//~ echo "freedom aint cheap " . $is_free . "<br>";
+					fseek($user_base, 1, SEEK_CUR); // to get past that EOL
+					if($is_free == "d") {
+					//  make this prettier
+						echo "This user has deactivated their account."; 
+						return;
+					}
+					else if($is_free == "n") {
+						//~ echo "<br> final countdown <br>";
+						$user_obj=new User;
+						$user_obj->username=$read_uname;
+						//~ echo "<br> curr pos1:" . ftell($user_base) . "<br>";
+						fseek($user_base, -$MAX_ULINE_LEN+$MAX_USER_LEN, SEEK_CUR);
+						//~ echo "<br> curr pos2:" . ftell($user_base) . "<br>";
+						$user_obj->password=trim(fread($user_base, $MAX_PWD_LEN), ".");
+						$user_obj->id=trim(fread($user_base, $MAX_ID_LEN), ".");
+						$user_obj->full_name=trim(fread($user_base, $MAX_FNM_LEN+1+$MAX_LNM_LEN), ".");
+						$user_obj->age=trim(fread($user_base, 4), ".");
+						$user_obj->email=trim(fread($user_base, $MAX_EML_LEN), ".");
+						$user_obj->followers=trim(fread($user_base, $MAX_FLR_LEN), ".");
+						$user_obj->followees=trim(fread($user_base, $MAX_FLE_LEN), ".");
+						$user_obj->free_bit="n";
+						//~ print_r($user_obj);
+						fclose($user_base);
+						return $user_obj;
+					}
+					else if($is_free == "f"){
+						echo "This user has deleted their account.";
+						fclose($user_base);
+						return; 
+					}
+				}
+				else{
+					//~ echo "current uname: $read_uname<br> current pos in file: ". ftell($user_base) . "<br>";
+
+					fseek($user_base, $MAX_ULINE_LEN-$MAX_USER_LEN, SEEK_CUR);
+				}
+			}
+			fclose($user_base);
+		}
+		else {
+		// 1.b if(!file exists)
+			// stop looking, user definitely does not exist. return empty object? how is a proper way to do so?
+			return;
+		}
+		$file_number+=1;
+	}
+		// 1.a.3 if a match, check if( free_bit field is "d")
+			//  if so, output the standard deactivated message, be this a registration look up or a search_user look up
+			// or a bad link look up or a modified GET link lookup
+			//  ALSO MAKE SURE THE GET method checks for specialhtmlcharacters, else can mod get for malicious code
+
+}
+
+function write_user($user_object){
+		// DOCUMENT THE CODE HERE
+
+
+		// 1. take the (int division)of the $user_object->id to detemrine which user_base file to open
+			// if user is a multiple of users_per_file, they are in line 0, not their USER ID line!
+		// 1.b check that this file exists, else report an error
+		// 2. use seek to write to the appropriate line_length * (user_id % users_per_file)
+		// 2.b for each field, write padded($field, $field_size, $delimiter)
+		// 2.c then write a "n" (for not free) as a 1 char field so when searching up a user can know
+			// if deactivated, deleted, or active, without opening up the free IDs file
+		// 2.d then write the line_delim_char
+		// close the file
+}
+
+function delete_user($user_id){
+		// DOCUMENT CODE HERE
+		// this choice is made by the user in the session so have the UID here already
+
+		// go to free_user[i] file based on UID mod, set that bit to "n". done
+}
+
+function deactivate_user($user_id){
+	// DOCUMENT CODE HERE
+		//  if anybody tries to read you and it says "d", message that you deactivated
+
+	// go to free_user[i] file based on UID mod, set that bit to "d". done
+}
+
+function create_file($file_type, $file_row, $file_column){
+	/*
+	create_file() creates a file of the type specified for the purposes needed in this project,
+	namely for users, woots, free_ids, or followers/followees, with a corresponding naming convention.
+	
+	Matrix File Naming -
+	For woots, followers, and followees the naming convention requires a row and a column
+	due to their nature of
+	EXPLAIN REST HERE
+	for followers and followees can get n^2, since n users, first follows n-1, seocnd n-2 ... really big
+	really fast
+
+	split up intro matrix so that have fixed length lines and can seek line base don user id quickly
+	so one user with 100k followers isnt a monolithic file/linear scan to next new line character
+
+	*/
+
+	// 0. set up the global vars for whats described here
+	// 1. check argument passed
+		// if "users", set local function vars to global vars for user files
+			// set rest of code to ignore COLUMNS if user file OR free_ids file
+		// if "woots", set local vars to global woot var
+		// if "free_ids", set local vars to free_id vars defined here
+			// set rest of code to ignore COLUMNS if user file OR free_ids file
+		// if "followers||followees", set vars to globals
+			// then test if (followers) set file naming convention to X
+			// if (followees) set file namign convention to Y
+	
+	global $MAX_ULINE_LEN, $USERS_PER_FILE, $MY_DELIMITER, $FID_HDR_LEN, $MAX_ID_LEN, $FLRS_PER_LINE;
+	$file_name="";
+	//~ echo "everything-3<br><br><br>";
+
+	if(!is_dir("users")) { mkdir("users"); }
+	if(!is_dir("fids")) { mkdir("fids"); }
+	if(!is_dir("flwrs")) { 
+		if(mkdir("flwrs")){ 
+			//~ echo "everything-3.5<br><br><br>";
+		//~ }else{ echo "everything-3.75<br><br><br>"; 
+		}
+	}
+	if(!is_dir("flwes")) { 
+		if(mkdir("flwes")){ 
+			//~ echo "everything-3.5<br><br><br>";
+		//~ }else{ echo "everything-3.75<br><br><br>"; 
+		}
+	}
+	//~ echo "everything-4<br><br><br>";
+	if($file_type=="users"){ $file_name="users/u_".$file_row.".txt"; }
+	else if($file_type=="free_ids") { $file_name="fids/fid_".$file_row.".txt"; }
+	else if($file_type=="woots") { $file_name="w_r".$file_row."c".$file_column.".txt"; }
+	else if($file_type=="followers") { $file_name="flwrs/fr_r".$file_row."c".$file_column.".txt"; }
+	else if($file_type=="followees") { $file_name="flwes/fe_r".$file_row."c".$file_column.".txt"; }
+	//~ echo "everything-5<br><br><br>";
+// create_file("following", $followee_id/$USERS_PER_FILE, $other_user->followees/$FLRS_PER_LINE)
+	//~ echo $file_name."<br><br><br>";
+	
+	if(file_exists($file_name)) { die("Could not create ".$file_name." as it already exists"); }
+	//~ echo "everything-6<br><br><br>";
+	// check if the file exists already, if so, output an error
+	// if not, define your variables for line length, lines per file, delimiter character
+	// whether to write an int at the top with a \n or not
+	// then write delim_char length_of_line*lines_per_file in one go
+	//  then write every length_of_line'th multiple in bytes the LINE_DELIM char
+	// free ID list segments have INTEGER\ny\n\y\y\n\d\n\y\y etc
+	if($file_type=="users"){
+		//~ echo "everything3<br><br><br>";
+		//~ echo "what file : " . $file_name . PHP_EOL;
+		$one_line=str_repeat($MY_DELIMITER, ($MAX_ULINE_LEN-1) );
+		$one_line=$one_line . PHP_EOL;
+		$file_handle=fopen($file_name, "w") or die("Could not open file: ".$file_name);
+		for($lines=0; $lines<$USERS_PER_FILE; $lines++){
+			fwrite($file_handle, $one_line);
+		}
+		fclose($file_handle);
+	}
+	else if($file_type=="free_ids") {
+		//~ echo "everything2<br><br><br>";
+		$header=str_pad((string)($USERS_PER_FILE-1), $FID_HDR_LEN, $MY_DELIMITER);
+		// somehow check if this includes a null char at the en	d
+		$header=$header.PHP_EOL;
+		$file_handle=fopen($file_name, "w") or die("Could not open file: ".$file_name);
+		fwrite($file_handle, $header);
+		$one_line=str_repeat("f.", $USERS_PER_FILE); // y.n.d.y.n.n.y.y.y.n.n, etc
+		fwrite($file_handle, $one_line);
+		fclose($file_handle);
+	}
+	else if($file_type=="followers" || $file_type=="followees"){
+		//~ echo "everything<br><br><br>";
+		$one_line=str_repeat($MY_DELIMITER, ($MAX_ID_LEN*$FLRS_PER_LINE) );
+		$one_line=$one_line . PHP_EOL;
+		$file_handle=fopen($file_name, "w") or die("Could not open file: ".$file_name);
+		for($lines=0; $lines<$USERS_PER_FILE; $lines++){
+			fwrite($file_handle, $one_line);
+		}
+		fclose($file_handle);	
+	}
+	//~ echo "everything0<br><br><br>";
+}
+
+function follow($home_user, $other_user){
+	// you do an O(n) scan of all your followers to make sure they're not on there
+	// then you do an O(n) scan for the first free spot
+	
+	// you do an O(n) scan of all their followers to make sure you don't double write
+	// then you do an O(n) scan for the first free spot
+	
+	// 4 O(n) scans is still O(n), just bad
+	// NO fid system for this, way too complicated
+	
+	
+	global $FLRS_PER_LINE, $MAX_FLR_LINE_LEN, $USERS_PER_FILE, $MAX_ID_LEN, $MAX_ULINE_LEN;
+		// home user is logged in, has been checked for
+		// other user exists, has been checked for
+	
+	$followee_id=$other_user->id;
+	$follower_id=$home_user->id;
+			// check if already following user, O(n) scan using # of followers
+			// if not, increment total # of followers, open the last file and write this guy
+	list ($fnm, $lnm, $flr_num) = already_following($home_user, $followee_id);
+	if(!isset($flr_num)){
+		// means you are not following the person already
+		// so find the first free spot, and write to that
+		// if first free returns empty, meaning no free spots, then create a new file
+		echo "You have left the already following function for user: $home_user->username following user ID: $followee_id <br>";
+		list ($file_name, $line_num, $col_num, $col_file_num)= first_free($home_user, "followees");		
+		if($file_name==-1){ // file does not exist and no free spots found
+			echo "No file was found with any free spots<br>";
+			$row_val=(int)($home_user->id/$USERS_PER_FILE);
+			$file_name="flwes/fe_r".$row_val."c".$col_file_num.".txt";
+			create_file("followees", $row_val , $col_file_num ); 
+			$col_num=0;
+		}
+		// otherwise you return a file name and col num, colfilenum in the filename
+		echo "You have left the first free function with file: ".$file_name." line #: ".$line_num." col #: ".$col_num." col_file_#: ".$col_file_num."<br>";		
+		$following=fopen($file_name, "r+") or die("Could not open file: ".$file_name);		
+		// use the returned values
+		fseek($following, ($line_num*$MAX_FLR_LINE_LEN)+($MAX_ID_LEN*$col_num));
+		fwrite($following, $followee_id);
+		fclose($following);
+		
+		//~ print_r($home_user);
+		$home_user->followees++;
+		$u_file="users/u_".(int)($home_user->id/$USERS_PER_FILE).".txt";
+		$user_base=fopen($u_file, "r+") or die("Could not open file: ".$u_file);
+		//~ echo "<br>testing".($home_user->id)." ".$USERS_PER_FILE." ".$MAX_ULINE_LEN;
+		flush_user($user_base, $home_user, ($home_user->id%$USERS_PER_FILE)*$MAX_ULINE_LEN);
+		fclose($user_base);
+	}
+	list ($fnm, $lnm, $fle_num) = already_followed_by($other_user, $follower_id);
+	if(!isset($fle_num)){
+		echo "You have left the already followed by function for user: $other_user->username followed by user ID: $follower_id <br>";
+		list ($file_name, $line_num, $col_num, $col_file_num)= first_free($other_user, "followers");		
+		if($file_name==-1){ // file does not exist and no free spots found
+			echo "No file was found with any free spots<br>";
+			$row_val=(int)($other_user->id/$USERS_PER_FILE);
+			$file_name="flwrs/fr_r".$row_val."c".$col_file_num.".txt";
+			create_file("followers", $row_val , $col_file_num ); 
+			$col_num=0;
+		}
+		// otherwise you return a file name and col num, colfilenum in the filename
+		echo "You have left the first free function with file: ".$file_name." line #: ".$line_num." col #: ".$col_num." col_file_#: ".$col_file_num."<br>";		
+		$following=fopen($file_name, "r+") or die("Could not open file: ".$file_name);		
+		// use the returned values
+		fseek($following, ($line_num*$MAX_FLR_LINE_LEN)+($MAX_ID_LEN*$col_num));
+		fwrite($following, $follower_id);
+		fclose($following);
+		
+		//~ print_r($home_user);
+		$other_user->followers++;
+		$u_file="users/u_".(int)($other_user->id/$USERS_PER_FILE).".txt";
+		$user_base=fopen($u_file, "r+") or die("Could not open file: ".$u_file);
+		//~ echo "<br>testing".($home_user->id)." ".$USERS_PER_FILE." ".$MAX_ULINE_LEN;
+		flush_user($user_base, $other_user, ($other_user->id%$USERS_PER_FILE)*$MAX_ULINE_LEN);
+		fclose($user_base);
+	 }
+ }
+
+function first_free($user_obj, $follow_type){
+	global $USERS_PER_FILE, $FLRS_PER_LINE, $MY_DELIMITER, $MAX_ID_LEN;
+	echo "<br><br>You are in the first_free function for user: $user_obj->username<br>";
+	$user_row=(int)($user_obj->id/$USERS_PER_FILE);
+	$current_column=0;
+	if($follow_type=="followees") { $type="e"; }
+	else if($follow_type=="followers"){ $type="r"; }
+
+	$file_name="flw".$type."s/f".$type."_r".$user_row."c".$current_column.".txt";
+	echo "You are about to check if the file: $file_name exists.<br>";
+	echo "The number of followe".$type."s is: ";
+	if($follow_type=="followees") { $group=$user_obj->followees; }
+	else if ($follow_type=="followers") { $group=$user_obj->followers; }
+	echo $group."<br>";
+	$followees_read=0;
+	$line_num=$user_obj->id%$USERS_PER_FILE;
+	while( file_exists($file_name) && $followees_read < $group){
+		$following=fopen($file_name, "r") or die("Could not open file ".$file_name);
+		fseek($following, $line_num*(1+$FLRS_PER_LINE*$MAX_ID_LEN));
+		$flwes_in_cur_file=$FLRS_PER_LINE; 
+		echo "There are $flwes_in_cur_file followe".$type."s in the current file<br>";
+		echo "You have read $followees_read followe".$type."s<br>";		
+		for($current_fle=0; $current_fle<$flwes_in_cur_file; $current_fle++){
+			echo "You are currently checking column ". $current_fle . " <br>";		
+			$current_id=trim(fread($following, $MAX_ID_LEN), $MY_DELIMITER);
+			if($current_id=="") { 
+				echo "Column ".($current_fle)." (value: $current_id) WAS a match an empty spot <br>";
+				return array($file_name, $line_num, $current_fle, $current_column); 
+			}
+			echo "Column ".($current_fle)." (value: $current_id) was not a match an empty spot <br>";
+			if($current_id!="") { $followees_read++; }
+		}
+		echo "You have exited the for loop as you have hit the # of flw".$type."s_in_cur_file:$flwes_in_cur_file<br>";
+		fclose($following);
+		$current_column++;
+		$file_name="flw".$type."s/f".$type."_r".$user_row."c".$current_column.".txt";
+	}
+	// if user has 0 followers
+		// if file exists, return it
+		// if file does not exist, create it
+	if(file_exists($file_name)) { return array($file_name, $line_num, 0, $current_column); }
+	else { return array(-1,$line_num,-1,$current_column); }
+}
+
+function already_following($home_user, $followee_id){
+	global $USERS_PER_FILE, $FLRS_PER_LINE, $MY_DELIMITER, $MAX_ID_LEN;
+	echo "<br><br>You are in the already following function for user: $home_user->username following user ID: $followee_id <br>";
+	$user_row=(int)($home_user->id/$USERS_PER_FILE);
+	$current_column=0;
+	$file_name="flwes/fe_r".$user_row."c".$current_column.".txt";
+	echo "You are about to check if the file: $file_name exists.<br>";
+	echo "The number of followees is: " . $home_user->followees ."<br>";
+	$followees_read=0;
+	while( file_exists($file_name) && $followees_read < $home_user->followees){
+		$following=fopen($file_name, "r");
+		$line_num=$home_user->id%$USERS_PER_FILE;
+		fseek($following, $line_num*(1+$FLRS_PER_LINE*$MAX_ID_LEN));
+		$flwes_in_cur_file=$FLRS_PER_LINE; 
+		echo "There are $flwes_in_cur_file followers in the current file<br>";
+		echo "You have read $followees_read followers<br>";		
+		for($current_fle=0; $current_fle<$flwes_in_cur_file; $current_fle++){
+			echo "You are currently checking column ". $current_fle . " <br>";		
+			$current_id=trim(fread($following, $MAX_ID_LEN), $MY_DELIMITER);
+			if(($current_id)==(string)($followee_id)) { 
+				echo "Column ".($current_fle)." (followee's id: $current_id) WAS a match to followee id: $followee_id <br>";
+				return array($file_name, $line_num, $current_fle); 
+			}
+			echo "Column ".($current_fle)." (followee's id: $current_id) was not a match to followee id: $followee_id <br>";
+			if($current_id!="") { $followees_read++; }
+		}
+		echo "You have exited the for loop as you have hit the # of flwes_in_cur_file:$flwes_in_cur_file<br>";
+		fclose($following);
+		$current_column++;
+		$file_name="flwes/fe_r".$user_row."c".$current_column.".txt";
+	}
+	return;
+// return bool
+}
+
+function already_followed_by($other_user, $follower_id){
+	global $USERS_PER_FILE, $FLRS_PER_LINE, $MY_DELIMITER, $MAX_ID_LEN;
+	echo "<br><br>You are in the already followed function for user: $other_user->username followed by user ID: $follower_id<br>";
+	$user_row=(int)($other_user->id/$USERS_PER_FILE);
+	$current_column=0;
+	$file_name="flwrs/fr_r".$user_row."c".$current_column.".txt";
+	echo "You are about to check if the file: $file_name exists.<br>";
+	echo "The number of followers is: " . $other_user->followers."<br>";
+// not while file exists, but while file exists and only up to the # of valid followers you have
+// so if user being followed has no followers, dont read anything, return false, cant be followed already
+	$followers_read=0;
+	while( file_exists($file_name) && $followers_read < $other_user->followers){
+		$following=fopen($file_name, "r");
+		$line_num=$other_user->id%$USERS_PER_FILE;
+		fseek($following, $line_num*(1+$FLRS_PER_LINE*$MAX_ID_LEN));
+		echo "You are about to enter the for loop for file: $file_name.<br>";
+		$flwrs_in_cur_file=$FLRS_PER_LINE; 
+		echo "There are $flwrs_in_cur_file followers in the current file<br>";
+		echo "You have read $followers_read followers<br>";
+		for($current_flr=0; $current_flr<$flwrs_in_cur_file; $current_flr++){
+			echo "You are currently checking column ". $current_flr . " <br>";
+			$current_id=trim(fread($following, $MAX_ID_LEN), $MY_DELIMITER);
+			if(($current_id)==(string)($follower_id)) { 
+				echo "Column ".($current_flr)." (follower's id: $current_id) WAS a match to follower id: $follower_id <br>";
+				return array($file_name, $line_num, $current_flr); 				
+			}
+			echo "Column ".($current_flr)." (follower's id: $current_id) was not a match to follower id: $follower_id <br>";
+			if($current_id!="") { $followers_read++; }
+			// only count a slot as a "follower read" if its a non empty slot
+		}
+		echo "You have exited the for loop as you have hit the # of flwrs_in_cur_file:$flwrs_in_cur_file<br>";
+		fclose($following);
+		$current_column++;
+		$file_name="flwrs/fr_r".$user_row."c".$current_column.".txt";
+
+	}
+	return;
+// return bool
+}
+
+function unfollow($home_user, $other_user){
+	// HAS TO REUSE EMPTY SPACES FOR NEW FOLLOWERS OR ELSE FOLLOW/UNFOLLOW EACH TIME LENGTHENS THE FILE WITH EMPTINESS
+	
+	global $FLRS_PER_LINE, $MAX_FLR_LINE_LEN, $USERS_PER_FILE, $MAX_ID_LEN, $MAX_ULINE_LEN, $MY_DELIMITER;	
+	$followee_id=$other_user->id;
+	$follower_id=$home_user->id;
+	list ($fnm, $lnm, $fle_num) = already_following($home_user, $followee_id);
+	// if you are already following that user 
+	if(isset($fle_num)){
+		$following=fopen($fnm, "r+") or die("Could not open file:".$fnm);
+		fseek($following, ($lnm*(1+$FLRS_PER_LINE*$MAX_ID_LEN)) + ($MAX_ID_LEN*$fle_num));
+		//~ echo "You are writing: ". str_repeat($MY_DELIMITER, $MAX_ID_LEN)."<br>";
+		fwrite($following, str_repeat($MY_DELIMITER, $MAX_ID_LEN)); // remove them from your followees
+		fclose($following);
+
+		$home_user->followees--; // decrease your number of followees
+		$u_file="users/u_".(int)($home_user->id/$USERS_PER_FILE).".txt";
+		$user_base=fopen($u_file, "r+") or die("Could not open file: ".$u_file);
+		flush_user($user_base, $home_user, ($home_user->id%$USERS_PER_FILE)*$MAX_ULINE_LEN);
+		fclose($user_base);
+	}
+	list ($fnm_2, $lnm_2, $flr_num) = already_followed_by($other_user, $follower_id);
+	if(isset($flr_num)){
+		// if that user is already being followed by you
+		$following=fopen($fnm_2, "r+") or die("Could not open file: $fnm");
+		fseek($following, ($lnm_2*(1+$FLRS_PER_LINE*$MAX_ID_LEN)) + ($MAX_ID_LEN*$flr_num));
+		fwrite($following, str_repeat($MY_DELIMITER, $MAX_ID_LEN)); // remove yourself from their followers
+		fclose($following);
+		
+		$other_user->followers--; // decrease their number of followers
+		$u_file="users/u_".(int)($other_user->id/$USERS_PER_FILE).".txt";
+		$user_base=fopen($u_file, "r+") or die("Could not open file: ".$u_file);
+		flush_user($user_base, $other_user, ($other_user->id%$USERS_PER_FILE)*$MAX_ULINE_LEN);
+		fclose($user_base);
+	}
+
+
+}
+
+?>
+
+
+
+</body>
+</html>

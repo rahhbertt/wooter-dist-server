@@ -1,0 +1,473 @@
+The directory: /var/www/html/users does not exist
+Have created dir! 
+The directory: /var/www/html/fids does not exist
+Have created dir! 
+The directory: /var/www/html/flwrs does not exist
+Have created dir! 
+The directory: /var/www/html/flwes does not exist
+Have created dir! 
+
+
+The results of unflushing u_1.txt at line # 4 are below: 
+test_accy14	test_passwdy	14	Test's_First_name Test's_Last_name	25	testemaily@emails.com	0	0	n	0	
+
+
+The results of read_user()ing are below: 
+Read the username: test_accy0
+Read the username: test_accy1
+Read the username: test_accy2
+Read the username: test_accy3
+Read the username: test_accy4
+Read the username: test_accy5
+Read the username: test_accy6
+Read the username: test_accy7
+Read the username: test_accy8
+Read the username: test_accy9
+Read the username: 
+Read the username: test_accy10
+Read the username: test_accy11
+Read the username: test_accy12
+The results of reading user test_accy12 are below: 
+test_accy12	test_passwdy	12	Test's_First_name Test's_Last_name	25	testemaily@emails.com	0	0	n	0	
+
+
+The results of read_id()ing are below: 
+The results of reading id # 0 are below: 
+test_accy0	test_passwdy	0	Test's_First_name Test's_Last_name	25	testemaily@emails.com	0	0	n	0	
+The results of reading id # 1 are below: 
+test_accy1	test_passwdy	1	Test's_First_name Test's_Last_name	25	testemaily@emails.com	0	0	n	0	
+The results of reading id # 2 are below: 
+test_accy2	test_passwdy	2	Test's_First_name Test's_Last_name	25	testemaily@emails.com	0	0	n	0	
+The results of reading id # 3 are below: 
+test_accy3	test_passwdy	3	Test's_First_name Test's_Last_name	25	testemaily@emails.com	0	0	n	0	
+The results of reading id # 4 are below: 
+test_accy4	test_passwdy	4	Test's_First_name Test's_Last_name	25	testemaily@emails.com	0	0	n	0	
+The results of reading id # 5 are below: 
+test_accy5	test_passwdy	5	Test's_First_name Test's_Last_name	25	testemaily@emails.com	0	0	n	0	
+The results of reading id # 6 are below: 
+test_accy6	test_passwdy	6	Test's_First_name Test's_Last_name	25	testemaily@emails.com	0	0	n	0	
+The results of reading id # 7 are below: 
+test_accy7	test_passwdy	7	Test's_First_name Test's_Last_name	25	testemaily@emails.com	0	0	n	0	
+The results of reading id # 8 are below: 
+test_accy8	test_passwdy	8	Test's_First_name Test's_Last_name	25	testemaily@emails.com	0	0	n	0	
+The results of reading id # 9 are below: 
+test_accy9	test_passwdy	9	Test's_First_name Test's_Last_name	25	testemaily@emails.com	0	0	n	0	
+The results of reading id # 10 are below: 
+test_accy10	test_passwdy	10	Test's_First_name Test's_Last_name	25	testemaily@emails.com	0	0	n	0	
+The results of reading id # 11 are below: 
+test_accy11	test_passwdy	11	Test's_First_name Test's_Last_name	25	testemaily@emails.com	0	0	n	0	
+The results of reading id # 12 are below: 
+test_accy12	test_passwdy	12	Test's_First_name Test's_Last_name	25	testemaily@emails.com	0	0	n	0	
+The results of reading id # 13 are below: 
+test_accy13	test_passwdy	13	Test's_First_name Test's_Last_name	25	testemaily@emails.com	0	0	n	0	
+The results of reading id # 14 are below: 
+test_accy14	test_passwdy	14	Test's_First_name Test's_Last_name	25	testemaily@emails.com	0	0	n	0	
+The results of reading id # 15 are below: 
+test_accy15	test_passwdy	15	Test's_First_name Test's_Last_name	25	testemaily@emails.com	0	0	n	0	
+The results of reading id # 16 are below: 
+test_accy16	test_passwdy	16	Test's_First_name Test's_Last_name	25	testemaily@emails.com	0	0	n	0	
+The results of reading id # 17 are below: 
+test_accy17	test_passwdy	17	Test's_First_name Test's_Last_name	25	testemaily@emails.com	0	0	n	0	
+The results of reading id # 18 are below: 
+test_accy18	test_passwdy	18	Test's_First_name Test's_Last_name	25	testemaily@emails.com	0	0	n	0	
+The results of reading id # 19 are below: 
+test_accy19	test_passwdy	19	Test's_First_name Test's_Last_name	25	testemaily@emails.com	0	0	n	0	
+The results of reading id # 20 are below: 
+test_accy20	test_passwdy	20	Test's_First_name Test's_Last_name	25	testemaily@emails.com	0	0	n	0	
+The results of reading id # 21 are below: 
+test_accy21	test_passwdy	21	Test's_First_name Test's_Last_name	25	testemaily@emails.com	0	0	n	0	
+The results of reading id # 22 are below: 
+test_accy22	test_passwdy	22	Test's_First_name Test's_Last_name	25	testemaily@emails.com	0	0	n	0	
+The results of reading id # 23 are below: 
+test_accy23	test_passwdy	23	Test's_First_name Test's_Last_name	25	testemaily@emails.com	0	0	n	0	
+The results of reading id # 24 are below: 
+test_accy24	test_passwdy	24	Test's_First_name Test's_Last_name	25	testemaily@emails.com	0	0	n	0	
+The results of reading id # 25 are below: 
+test_accy25	test_passwdy	25	Test's_First_name Test's_Last_name	25	testemaily@emails.com	0	0	n	0	
+The results of reading id # 26 are below: 
+test_accy26	test_passwdy	26	Test's_First_name Test's_Last_name	25	testemaily@emails.com	0	0	n	0	
+The results of reading id # 27 are below: 
+test_accy27	test_passwdy	27	Test's_First_name Test's_Last_name	25	testemaily@emails.com	0	0	n	0	
+The results of reading id # 28 are below: 
+test_accy28	test_passwdy	28	Test's_First_name Test's_Last_name	25	testemaily@emails.com	0	0	n	0	
+The results of reading id # 29 are below: 
+test_accy29	test_passwdy	29	Test's_First_name Test's_Last_name	25	testemaily@emails.com	0	0	n	0	
+The results of reading id # 30 are below: 
+test_accy30	test_passwdy	30	Test's_First_name Test's_Last_name	25	testemaily@emails.com	0	0	n	0	
+The results of reading id # 31 are below: 
+test_accy31	test_passwdy	31	Test's_First_name Test's_Last_name	25	testemaily@emails.com	0	0	n	0	
+The results of reading id # 32 are below: 
+test_accy32	test_passwdy	32	Test's_First_name Test's_Last_name	25	testemaily@emails.com	0	0	n	0	
+The results of reading id # 33 are below: 
+test_accy33	test_passwdy	33	Test's_First_name Test's_Last_name	25	testemaily@emails.com	0	0	n	0	
+The results of reading id # 34 are below: 
+test_accy34	test_passwdy	34	Test's_First_name Test's_Last_name	25	testemaily@emails.com	0	0	n	0	
+The results of reading id # 35 are below: 
+test_accy35	test_passwdy	35	Test's_First_name Test's_Last_name	25	testemaily@emails.com	0	0	n	0	
+The results of reading id # 36 are below: 
+test_accy36	test_passwdy	36	Test's_First_name Test's_Last_name	25	testemaily@emails.com	0	0	n	0	
+The results of reading id # 37 are below: 
+test_accy37	test_passwdy	37	Test's_First_name Test's_Last_name	25	testemaily@emails.com	0	0	n	0	
+The results of reading id # 38 are below: 
+test_accy38	test_passwdy	38	Test's_First_name Test's_Last_name	25	testemaily@emails.com	0	0	n	0	
+The results of reading id # 39 are below: 
+test_accy39	test_passwdy	39	Test's_First_name Test's_Last_name	25	testemaily@emails.com	0	0	n	0	
+Error: the file /var/www/html/users/u_4.txt does not exist in the user base
+Error: the file /var/www/html/users/u_4.txt does not exist in the user base
+Error: the file /var/www/html/users/u_4.txt does not exist in the user base
+Error: the file /var/www/html/users/u_4.txt does not exist in the user base
+Error: the file /var/www/html/users/u_4.txt does not exist in the user base
+Error: the file /var/www/html/users/u_4.txt does not exist in the user base
+Error: the file /var/www/html/users/u_4.txt does not exist in the user base
+Error: the file /var/www/html/users/u_4.txt does not exist in the user base
+Error: the file /var/www/html/users/u_4.txt does not exist in the user base
+Error: the file /var/www/html/users/u_4.txt does not exist in the user base
+
+
+The results of already_following()ing are below: 
+Read the username: test_accy0
+Read the username: test_accy1
+Read the username: test_accy2
+Read the username: test_accy3
+Read the username: test_accy4
+Read the username: test_accy5
+Read the username: test_accy6
+Read the username: test_accy7
+Read the username: test_accy8
+Read the username: test_accy9
+Read the username: 
+Read the username: test_accy10
+Read the username: test_accy11
+Read the username: test_accy12
+Read the username: test_accy13
+Read the username: test_accy14
+Read the username: test_accy15
+Read the username: test_accy16
+The user test_accy16 is not following user id # 0
+
+The user test_accy16 is not following user id # 1
+
+The user test_accy16 is not following user id # 2
+
+The user test_accy16 is not following user id # 3
+
+The user test_accy16 is not following user id # 4
+
+The user test_accy16 is not following user id # 5
+
+The user test_accy16 is not following user id # 6
+
+The user test_accy16 is not following user id # 7
+
+The user test_accy16 is not following user id # 8
+
+The user test_accy16 is not following user id # 9
+
+The user test_accy16 is not following user id # 10
+
+The user test_accy16 is not following user id # 11
+
+The user test_accy16 is not following user id # 12
+
+The user test_accy16 is not following user id # 13
+
+The user test_accy16 is not following user id # 14
+
+The user test_accy16 is not following user id # 15
+
+The user test_accy16 is not following user id # 16
+
+The user test_accy16 is not following user id # 17
+
+The user test_accy16 is not following user id # 18
+
+The user test_accy16 is not following user id # 19
+
+The user test_accy16 is not following user id # 20
+
+The user test_accy16 is not following user id # 21
+
+The user test_accy16 is not following user id # 22
+
+The user test_accy16 is not following user id # 23
+
+The user test_accy16 is not following user id # 24
+
+The user test_accy16 is not following user id # 25
+
+The user test_accy16 is not following user id # 26
+
+The user test_accy16 is not following user id # 27
+
+The user test_accy16 is not following user id # 28
+
+The user test_accy16 is not following user id # 29
+
+
+
+The results of already_followed_by()ing are below: 
+Read the username: test_accy0
+Read the username: test_accy1
+Read the username: test_accy2
+Read the username: test_accy3
+Read the username: test_accy4
+Read the username: test_accy5
+Read the username: test_accy6
+Read the username: test_accy7
+Read the username: test_accy8
+Read the username: test_accy9
+Read the username: 
+Read the username: test_accy10
+Read the username: test_accy11
+Read the username: test_accy12
+Read the username: test_accy13
+The user test_accy13 is not being followed by user id # 0
+
+The user test_accy13 is not being followed by user id # 1
+
+The user test_accy13 is not being followed by user id # 2
+
+The user test_accy13 is not being followed by user id # 3
+
+The user test_accy13 is not being followed by user id # 4
+
+The user test_accy13 is not being followed by user id # 5
+
+The user test_accy13 is not being followed by user id # 6
+
+The user test_accy13 is not being followed by user id # 7
+
+The user test_accy13 is not being followed by user id # 8
+
+The user test_accy13 is not being followed by user id # 9
+
+The user test_accy13 is not being followed by user id # 10
+
+The user test_accy13 is not being followed by user id # 11
+
+The user test_accy13 is not being followed by user id # 12
+
+The user test_accy13 is not being followed by user id # 13
+
+The user test_accy13 is not being followed by user id # 14
+
+The user test_accy13 is not being followed by user id # 15
+
+The user test_accy13 is not being followed by user id # 16
+
+The user test_accy13 is not being followed by user id # 17
+
+The user test_accy13 is not being followed by user id # 18
+
+The user test_accy13 is not being followed by user id # 19
+
+The user test_accy13 is not being followed by user id # 20
+
+The user test_accy13 is not being followed by user id # 21
+
+The user test_accy13 is not being followed by user id # 22
+
+The user test_accy13 is not being followed by user id # 23
+
+The user test_accy13 is not being followed by user id # 24
+
+The user test_accy13 is not being followed by user id # 25
+
+The user test_accy13 is not being followed by user id # 26
+
+The user test_accy13 is not being followed by user id # 27
+
+The user test_accy13 is not being followed by user id # 28
+
+The user test_accy13 is not being followed by user id # 29
+
+
+
+The results of follow()ing are below: 
+
+
+The results of first_free()ing are below: 
+FOLLOWEES:	test_accy0	/var/www/html/flwes/fe_r0c3.txt	line#: 0	fle_pos: 9	clmn pos: 3
+
+test_accy0 must create a new file as they have : 40 spots taken up 
+This is in fact a border value: 40 % 10 = 0
+
+
+
+FOLLOWEES:	test_accy1	/var/www/html/flwes/fe_r0c3.txt	line#: 1	fle_pos: 9	clmn pos: 3
+
+FOLLOWERS:	test_accy1	/var/www/html/flwrs/fr_r0c3.txt	line#: 1	fle_pos: 9	clmn pos: 3
+
+
+
+FOLLOWEES:	test_accy2	/var/www/html/flwes/fe_r0c3.txt	line#: 2	fle_pos: 9	clmn pos: 3
+
+FOLLOWERS:	test_accy2	/var/www/html/flwrs/fr_r0c3.txt	line#: 2	fle_pos: 8	clmn pos: 3
+
+
+
+FOLLOWEES:	test_accy3	/var/www/html/flwes/fe_r0c3.txt	line#: 3	fle_pos: 9	clmn pos: 3
+
+FOLLOWERS:	test_accy3	/var/www/html/flwrs/fr_r0c3.txt	line#: 3	fle_pos: 8	clmn pos: 3
+
+
+
+FOLLOWEES:	test_accy4	/var/www/html/flwes/fe_r0c3.txt	line#: 4	fle_pos: 9	clmn pos: 3
+
+FOLLOWERS:	test_accy4	/var/www/html/flwrs/fr_r0c3.txt	line#: 4	fle_pos: 9	clmn pos: 3
+
+
+
+FOLLOWEES:	test_accy5	/var/www/html/flwes/fe_r0c3.txt	line#: 5	fle_pos: 9	clmn pos: 3
+
+FOLLOWERS:	test_accy5	/var/www/html/flwrs/fr_r0c3.txt	line#: 5	fle_pos: 8	clmn pos: 3
+
+
+
+FOLLOWEES:	test_accy6	/var/www/html/flwes/fe_r0c3.txt	line#: 6	fle_pos: 9	clmn pos: 3
+
+FOLLOWERS:	test_accy6	/var/www/html/flwrs/fr_r0c3.txt	line#: 6	fle_pos: 9	clmn pos: 3
+
+
+
+FOLLOWEES:	test_accy7	/var/www/html/flwes/fe_r0c3.txt	line#: 7	fle_pos: 9	clmn pos: 3
+
+FOLLOWERS:	test_accy7	/var/www/html/flwrs/fr_r0c3.txt	line#: 7	fle_pos: 9	clmn pos: 3
+
+
+
+FOLLOWEES:	test_accy8	/var/www/html/flwes/fe_r0c3.txt	line#: 8	fle_pos: 9	clmn pos: 3
+
+FOLLOWERS:	test_accy8	/var/www/html/flwrs/fr_r0c3.txt	line#: 8	fle_pos: 8	clmn pos: 3
+
+
+
+FOLLOWEES:	test_accy9	/var/www/html/flwes/fe_r0c3.txt	line#: 9	fle_pos: 9	clmn pos: 3
+
+FOLLOWERS:	test_accy9	/var/www/html/flwrs/fr_r0c3.txt	line#: 9	fle_pos: 9	clmn pos: 3
+
+
+
+FOLLOWEES:	test_accy10	/var/www/html/flwes/fe_r1c3.txt	line#: 0	fle_pos: 9	clmn pos: 3
+
+test_accy10 must create a new file as they have : 40 spots taken up 
+This is in fact a border value: 40 % 10 = 0
+
+
+
+FOLLOWEES:	test_accy11	/var/www/html/flwes/fe_r1c3.txt	line#: 1	fle_pos: 9	clmn pos: 3
+
+FOLLOWERS:	test_accy11	/var/www/html/flwrs/fr_r1c3.txt	line#: 1	fle_pos: 7	clmn pos: 3
+
+
+
+FOLLOWEES:	test_accy12	/var/www/html/flwes/fe_r1c3.txt	line#: 2	fle_pos: 9	clmn pos: 3
+
+FOLLOWERS:	test_accy12	/var/www/html/flwrs/fr_r1c3.txt	line#: 2	fle_pos: 9	clmn pos: 3
+
+
+
+FOLLOWEES:	test_accy13	/var/www/html/flwes/fe_r1c3.txt	line#: 3	fle_pos: 9	clmn pos: 3
+
+FOLLOWERS:	test_accy13	/var/www/html/flwrs/fr_r1c3.txt	line#: 3	fle_pos: 9	clmn pos: 3
+
+
+
+FOLLOWEES:	test_accy14	/var/www/html/flwes/fe_r1c3.txt	line#: 4	fle_pos: 9	clmn pos: 3
+
+FOLLOWERS:	test_accy14	/var/www/html/flwrs/fr_r1c3.txt	line#: 4	fle_pos: 8	clmn pos: 3
+
+
+
+FOLLOWEES:	test_accy15	/var/www/html/flwes/fe_r1c3.txt	line#: 5	fle_pos: 9	clmn pos: 3
+
+test_accy15 must create a new file as they have : 40 spots taken up 
+This is in fact a border value: 40 % 10 = 0
+
+
+
+FOLLOWEES:	test_accy16	/var/www/html/flwes/fe_r1c3.txt	line#: 6	fle_pos: 9	clmn pos: 3
+
+FOLLOWERS:	test_accy16	/var/www/html/flwrs/fr_r1c3.txt	line#: 6	fle_pos: 9	clmn pos: 3
+
+
+
+FOLLOWEES:	test_accy17	/var/www/html/flwes/fe_r1c3.txt	line#: 7	fle_pos: 9	clmn pos: 3
+
+FOLLOWERS:	test_accy17	/var/www/html/flwrs/fr_r1c3.txt	line#: 7	fle_pos: 8	clmn pos: 3
+
+
+
+FOLLOWEES:	test_accy18	/var/www/html/flwes/fe_r1c3.txt	line#: 8	fle_pos: 9	clmn pos: 3
+
+FOLLOWERS:	test_accy18	/var/www/html/flwrs/fr_r1c3.txt	line#: 8	fle_pos: 8	clmn pos: 3
+
+
+
+FOLLOWEES:	test_accy19	/var/www/html/flwes/fe_r1c3.txt	line#: 9	fle_pos: 9	clmn pos: 3
+
+FOLLOWERS:	test_accy19	/var/www/html/flwrs/fr_r1c3.txt	line#: 9	fle_pos: 9	clmn pos: 3
+
+
+
+FOLLOWEES:	test_accy20	/var/www/html/flwes/fe_r2c3.txt	line#: 0	fle_pos: 9	clmn pos: 3
+
+test_accy20 must create a new file as they have : 40 spots taken up 
+This is in fact a border value: 40 % 10 = 0
+
+
+
+FOLLOWEES:	test_accy21	/var/www/html/flwes/fe_r2c3.txt	line#: 1	fle_pos: 9	clmn pos: 3
+
+FOLLOWERS:	test_accy21	/var/www/html/flwrs/fr_r2c3.txt	line#: 1	fle_pos: 8	clmn pos: 3
+
+
+
+FOLLOWEES:	test_accy22	/var/www/html/flwes/fe_r2c3.txt	line#: 2	fle_pos: 9	clmn pos: 3
+
+FOLLOWERS:	test_accy22	/var/www/html/flwrs/fr_r2c3.txt	line#: 2	fle_pos: 8	clmn pos: 3
+
+
+
+FOLLOWEES:	test_accy23	/var/www/html/flwes/fe_r2c3.txt	line#: 3	fle_pos: 9	clmn pos: 3
+
+FOLLOWERS:	test_accy23	/var/www/html/flwrs/fr_r2c3.txt	line#: 3	fle_pos: 8	clmn pos: 3
+
+
+
+FOLLOWEES:	test_accy24	/var/www/html/flwes/fe_r2c3.txt	line#: 4	fle_pos: 9	clmn pos: 3
+
+FOLLOWERS:	test_accy24	/var/www/html/flwrs/fr_r2c3.txt	line#: 4	fle_pos: 5	clmn pos: 3
+
+
+
+FOLLOWEES:	test_accy25	/var/www/html/flwes/fe_r2c3.txt	line#: 5	fle_pos: 9	clmn pos: 3
+
+FOLLOWERS:	test_accy25	/var/www/html/flwrs/fr_r2c3.txt	line#: 5	fle_pos: 9	clmn pos: 3
+
+
+
+FOLLOWEES:	test_accy26	/var/www/html/flwes/fe_r2c3.txt	line#: 6	fle_pos: 9	clmn pos: 3
+
+FOLLOWERS:	test_accy26	/var/www/html/flwrs/fr_r2c3.txt	line#: 6	fle_pos: 9	clmn pos: 3
+
+
+
+FOLLOWEES:	test_accy27	/var/www/html/flwes/fe_r2c3.txt	line#: 7	fle_pos: 9	clmn pos: 3
+
+FOLLOWERS:	test_accy27	/var/www/html/flwrs/fr_r2c3.txt	line#: 7	fle_pos: 9	clmn pos: 3
+
+
+
+FOLLOWEES:	test_accy28	/var/www/html/flwes/fe_r2c3.txt	line#: 8	fle_pos: 8	clmn pos: 3
+
+FOLLOWERS:	test_accy28	/var/www/html/flwrs/fr_r2c3.txt	line#: 8	fle_pos: 9	clmn pos: 3
+
+
+
+FOLLOWEES:	test_accy29	/var/www/html/flwes/fe_r2c3.txt	line#: 9	fle_pos: 8	clmn pos: 3
+
+FOLLOWERS:	test_accy29	/var/www/html/flwrs/fr_r2c3.txt	line#: 9	fle_pos: 9	clmn pos: 3
+
+
+
