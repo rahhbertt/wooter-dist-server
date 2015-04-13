@@ -24,11 +24,13 @@
 #define	BUFFSIZE	8192
 #define  SA struct sockaddr
 #define	LISTENQ		1024
-#define PORT_NUM    13093
+#define PORT_NUM    13092
 
 using namespace std;
 mutex globy;
-	
+vector<unique_lock<mutex>*> all_locks(1000); // arbitrary limit, would use larger number or transaction model in practice
+vector<string> file_names(1000);
+
 struct User{
 public:
 	string username, password;
@@ -59,6 +61,7 @@ const string FILE_PATH="/var/www/html";
 
 void net_connection(char** argv);
 void function_tester(char cond='n');
+void multi_threaded_tester(char cond='n');
 void create_file(string file_type, string file_row, string file_column);
 void flush_user(stringstream& file_name_ss, User* user_obj, int offset);
 User* create_new_user(User* user_obj);
@@ -75,8 +78,10 @@ void write_woot(User* home_user, string woot, string timestamp);
 vector<string>* load_woots_seq(User* home_user, int num_woots);
 vector<string>* load_woots(User* home_user, int num_woots, char seq='n');
 
+
 int main(int argc, char **argv) {	
-	net_connection(argv);
+	//~ net_connection(argv);
+	multi_threaded_tester('y');
 	return 0;
 }
 
@@ -247,10 +252,10 @@ void handle_php(int connfd, char* cmd, int cmd_size){
 	* that the php code expects in the case of an error, and is already checking for,
 	* such as an empty user object returned on a read_user() command.
 	* 	Thus all exit(code) lines are simply for local testing and impossible-case debugging of the .cpp code.
-	*/
-	//~ globy.lock();
+	*/	
 	unique_lock<mutex> request_lock(globy, defer_lock);
 	request_lock.lock();
+	
 	stringstream received_ss;// make a stream out of the message
 	received_ss.str(string(cmd));
 	string received_str;
@@ -364,7 +369,6 @@ void handle_php(int connfd, char* cmd, int cmd_size){
 	cmd=nullptr;
 	close(connfd);
 	request_lock.unlock();
-	//~ globy.unlock();
 }
 
 void net_connection(char** argv){
@@ -461,6 +465,44 @@ void net_connection(char** argv){
 	// 3) read() now does MSG_SIZE since sizeof(cmd) wont work since not stack variable anymore
 	// 4) if(read_well==sizeof(cmd)) now also MSG_SIZE instead of sizeof(cmd)
 	// a single thread, a single request works fine now
+	
+	// fixed tester code. running a loop of read user, write woot didnt evne work
+	// when sequential when ran two at same time. 
+	// test A would read user, write a woot, read user, write a woot
+	// test B would begin. test A does read user. test B does read user, write woot
+	// now test A writes woot. the woot count is relative to A's stale read of the user
+	// thus woot count gets "lost", lower than it should be total
+	
+}
+
+void multi_threaded_tester(char cond){	
+	
+	User* usey = new User;
+	usey->username="test_accy";
+	usey->password="test_passwdy";
+	usey->full_name="Test's_First_name Test's_Last_name";
+	usey->age=25;
+	usey->email="testemaily@emails.com";
+	string original_name=usey->username;
+	if(cond=='y'){
+		for(int i=0; i <40; i++){ 
+			stringstream fullest_name_ss;
+			fullest_name_ss << original_name << i;
+			usey->username=fullest_name_ss.str();
+			fullest_name_ss.str("");
+			unique_lock<mutex> create_lock(globy);
+			//~ globy.lock();
+			thread new_usey([&] { create_new_user(usey); } ); 
+			//~ new_usey.detach();
+			new_usey.join();
+			create_lock.unlock();
+		}
+		delete usey;
+		usey=NULL;
+	}
+	//~ User* usey2=unflush_user("/var/www/html/users/u_1.txt", 4*MAX_ULINE_LEN);
+	// unflush does not error check, assumes youve already found the user and are just pulling out
+
 	
 }
 
