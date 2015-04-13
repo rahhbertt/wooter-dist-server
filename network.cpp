@@ -8,6 +8,7 @@
 #include <vector>
 
 #include <thread> // for stage 3
+#include <mutex>
 
 #include <stdio.h>       // perror, snprintf
 #include <stdlib.h>      // exit
@@ -23,10 +24,11 @@
 #define	BUFFSIZE	8192
 #define  SA struct sockaddr
 #define	LISTENQ		1024
-#define PORT_NUM    13013
+#define PORT_NUM    13093
 
 using namespace std;
-
+mutex globy;
+	
 struct User{
 public:
 	string username, password;
@@ -85,7 +87,7 @@ void reply(int connfd, string msg){
 	*/
 	stringstream reply_ss; // stringstream to append endl to message
 	reply_ss << msg << endl; // NEED that endl for php to know line has ended
-	//~ cerr << reply_ss.str() << endl; // local output
+	cerr << endl << "Sending reply: " << reply_ss.str() << endl; // local output
 	string reply_s(reply_ss.str()); // make a string out of the stream
 	char* reply_c=new char[reply_s.size()]; // allocate space for a char* the size of our line
 	reply_s.copy(reply_c, reply_s.size() ); // fill that char* with the line's contents
@@ -246,7 +248,9 @@ void handle_php(int connfd, char* cmd, int cmd_size){
 	* such as an empty user object returned on a read_user() command.
 	* 	Thus all exit(code) lines are simply for local testing and impossible-case debugging of the .cpp code.
 	*/
-	
+	//~ globy.lock();
+	unique_lock<mutex> request_lock(globy, defer_lock);
+	request_lock.lock();
 	stringstream received_ss;// make a stream out of the message
 	received_ss.str(string(cmd));
 	string received_str;
@@ -359,6 +363,8 @@ void handle_php(int connfd, char* cmd, int cmd_size){
 	delete cmd;
 	cmd=nullptr;
 	close(connfd);
+	request_lock.unlock();
+	//~ globy.unlock();
 }
 
 void net_connection(char** argv){
@@ -399,6 +405,8 @@ void net_connection(char** argv){
 		perror("Unable to listen");
 		exit(3);
 	} 
+	
+
 
 	for ( ; ; ) {
         // 5. Block until someone connects.
@@ -427,10 +435,12 @@ void net_connection(char** argv){
 			// copy connfd by value so can create a new connection and not lose this fd
 			// same with the rest
 			//~ char* new_cmd=cmd;
-			cout << "Thread is getting command:" << cmd << endl;
+			//~ cout << "Thread is getting command:" << cmd << endl;
+			//~ globy.lock();
+			//~ request_lock.lock();
 			thread client_request([connfd, cmd, MSG_SIZE] { handle_php(connfd, cmd, MSG_SIZE); });
 			client_request.detach(); // so if main exits we dont crash everything, just in case?
-//~ 
+
 			//~ cout << "Thread got command:" << cmd << endl;
 			// 6. Close the connection with the current client and go back
 			//    for another. AFTER this client has finished on that connection

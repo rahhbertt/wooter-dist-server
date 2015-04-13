@@ -9,9 +9,9 @@ class User{
 	public $username, $password, $id, $full_name, $age, $email;
 	public $followers, $followees, $free_bit, $num_woots;
 }
-$PORT_NUM=13013;
+$PORT_NUM=13093;
 $SEND_SIZE=560;
-$TIME_OUT=500;
+$TIME_OUT=50;
 
 // the following max values are hard coded into registration.html to not have to change it to .php
 $MIN_USER_LEN=8;	$MAX_USER_LEN=24+1; 
