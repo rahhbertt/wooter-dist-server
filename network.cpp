@@ -9,6 +9,7 @@
 
 #include <thread> // for stage 3
 #include <mutex>
+#include <chrono>
 
 #include <stdio.h>       // perror, snprintf
 #include <stdlib.h>      // exit
@@ -27,10 +28,15 @@
 #define PORT_NUM    13092
 
 using namespace std;
-mutex globy;
+mutex globy; // currently testing this at handle php
+mutex globy2; // currently testing this at mt_open
 vector<unique_lock<mutex>*> all_locks(1000); // arbitrary limit, would use larger number or transaction model in practice
 vector<string> file_names(1000);
 int num_active=0;
+
+class FileLock;
+vector<FileLock*> file_locks(1000);
+
 
 struct User{
 public:
@@ -254,8 +260,8 @@ void handle_php(int connfd, char* cmd, int cmd_size){
 	* such as an empty user object returned on a read_user() command.
 	* 	Thus all exit(code) lines are simply for local testing and impossible-case debugging of the .cpp code.
 	*/	
-	unique_lock<mutex> request_lock(globy, defer_lock);
-	request_lock.lock();
+	//~ unique_lock<mutex> request_lock(globy, defer_lock);
+	//~ request_lock.lock();
 	
 	stringstream received_ss;// make a stream out of the message
 	received_ss.str(string(cmd));
@@ -369,7 +375,7 @@ void handle_php(int connfd, char* cmd, int cmd_size){
 	delete cmd;
 	cmd=nullptr;
 	close(connfd);
-	request_lock.unlock();
+	//~ request_lock.unlock();
 }
 
 void net_connection(char** argv){
@@ -477,55 +483,77 @@ void net_connection(char** argv){
 }
 
 void multi_threaded_tester(char cond){	
-	
-	User* usey = new User;
-	usey->username="test_accy";
-	usey->password="test_passwdy";
-	usey->full_name="Test's_First_name Test's_Last_name";
-	usey->age=25;
-	usey->email="testemaily@emails.com";
-	string original_name=usey->username;
+	vector<User*> clean_up;
+	User* usey = nullptr;
 	if(cond=='y'){
-		for(int i=0; i <40; i++){ 
+		for(int i=0; i <10; i++){ 				
+			usey=new User;
+			usey->username="test_accy";
+			usey->password="test_passwdy";
+			usey->full_name="Test's_First_name Test's_Last_name";
+			usey->age=25;
+			usey->email="testemaily@emails.com";
+			string original_name=usey->username;
+			clean_up.push_back(usey);
+			
 			stringstream fullest_name_ss;
 			fullest_name_ss << original_name << i;
 			usey->username=fullest_name_ss.str();
 			fullest_name_ss.str("");
-			unique_lock<mutex> create_lock(globy);
+			//~ unique_lock<mutex> create_lock(globy);
 			//~ globy.lock();
+
 			thread new_usey([&] { create_new_user(usey); } ); 
-			//~ new_usey.detach();
-			new_usey.join();
-			create_lock.unlock();
+			new_usey.detach();
+			//~ new_usey.join();
+			//~ create_lock.unlock();
 		}
-		delete usey;
-		usey=NULL;
+		//~ delete usey; //omg so stupid
+		//~ usey=NULL; // I'm deleting the user object as the thread is trying to do its job
+	}
+	this_thread::sleep_for(chrono::seconds(60));
+	for(size_t i=0; i<clean_up.size(); i++){
+		delete clean_up[i];
+		clean_up[i]=nullptr;
 	}
 	//~ User* usey2=unflush_user("/var/www/html/users/u_1.txt", 4*MAX_ULINE_LEN);
 	// unflush does not error check, assumes youve already found the user and are just pulling out
 
+		cout << endl << " ending mt_tester " << endl;
+}
+
+class FileLock{
+	public:
+	FileLock(){}
+	FileLock(const string& file_path) : file_name(file_path) { cout << "FileLock created for: " << file_path << endl; }
+	string get_name() { return file_name; }
+	void file_lock();
+	void file_unlock();
 	
+	private:
+	string file_name;
+	mutex file_mut;
+	unique_lock<mutex> locked;
+};
+
+void FileLock::file_lock(){ 
+	cout << "Thread: " << this_thread::get_id() << "\t\t\twait for\tlock: " << file_name << endl;
+	locked=unique_lock<mutex>(file_mut); 
+	cout << "Thread: " << this_thread::get_id() << " \tobtained\tlock: " << file_name << endl;
+}
+void FileLock::file_unlock(){ 
+	cout << "Thread: " << this_thread::get_id() << " \t\t\tpre-release\tlock: " << file_name << endl;	
+	locked.unlock(); 
+	cout << "Thread: " << this_thread::get_id() << " \t\t\treleased\tlock: " << file_name << endl;
 }
 
 int mt_open(string path, fstream& user_file){
-	
-	// protect this with a giant OPEN lock, so while one is figuring out it slock
-	// others cant also be doing so, and potentially doubly try to create a lock?
-	
-	// in reality need a condition variable
-	// this is a critical region in itself, distributing or creating appropriate locks
+	// 1) protect this critical region with a giant lock to test. 
+	// 2) change giant lock to a condition variable, just because more efficient than busy waiting
+	// this code is a critical region in itself, distributing or creating appropriate locks
 	// but a cond_var here (and a notify_all/notify after unlocking hte cv and going to lock
 	// the file lock you need?) is way less sequentialism than
 	// ANY TIME ANYBODY IS EVER USING A SINGLE FILE EVER, NOBODY ELSE CAN PROCEED
-	
-	
-	
-	
-	
-	
-	// what actually needs to be done is not a vector of unique locks
-	// but a similar idea, with a vector of file object wrappers, each with their own
-	// mutex field
 	
 	
 	// so each time you have a file name, mt open, and if not found, CREATE the wrapper
@@ -533,62 +561,40 @@ int mt_open(string path, fstream& user_file){
 	// now unique_lock that mutex
 	// any thread trying to open the same file is now waiting, any other thread proceeds no problem
 	// and still need fixed vector size since no mutex move constructor
-	// and uniquelock move constructor iffy, plus its not even in the class
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	int str_pos=0;
+	// and uniquelock move constructor iffy, plus its not even in the class			
+	unique_lock<mutex> global_ul(globy2);
+	//~ globy.lock();
+	cout << "Thread: " << this_thread::get_id() << "\taccessed\tglobal lock\tin mt_open" << endl;
+	int lock_pos=0;
 	bool found=false;
-	while( str_pos < num_active ){
-		if(file_names[str_pos]==path){ 
+	while( lock_pos < num_active ){
+		if(file_locks[lock_pos]->get_name()==path){ 
 			found=true;
 			break;
 		}
-		str_pos++;
+		lock_pos++;
 	}
 	if(!found){
-		//~ mutex* temp_mut = new mutex;
-		unique_lock<mutex> temp_lock(*(new mutex));
-		//~ unique_lock<mutex>  temp_lock= new unique_lock(new mutex);
-
-		unique_lock<mutex>* temp_lock_2=new unique_lock<mutex>;
-		(*temp_lock_2)=std::move(temp_lock); // move assignment
-		// lock it before pushing back, so no race condition of accsesing the push abck before the locking
-		all_locks[num_active]=&temp_lock;	
-		// no race conditions now
-		file_names[num_active]=path;
-		str_pos=num_active;
+		FileLock* new_fl= new FileLock(path);
+		file_locks[num_active]=(new_fl); // would this scope out if local? move construciton and whatnot
+		new_fl->file_lock();
 		num_active++;	
-	
 	} else{ // it was found
-		all_locks[str_pos]->lock();
+		file_locks[lock_pos]->file_lock();
 		// lock that lock and wait
 	}
 	user_file.open(path); // open the path
-	return str_pos;	
+	
+	cout << "Thread: " << this_thread::get_id() << "\t\treleased\tglobal lock\tin mt_open" << endl;
+	//~ globy.unlock();
+	global_ul.unlock();
+	return lock_pos;	
 }
 
-void mt_close(int str_pos, fstream& user_file){
-	all_locks[str_pos]->unlock();
-	user_file.close();
-
+void mt_close(int lock_pos, fstream& user_file){
+	cout << "Thread: " << this_thread::get_id() << "\tclosing file: " << file_locks[lock_pos]->get_name() << endl;
+	user_file.close(); // the file should be flushed BEFORE releasing the lock
+	file_locks[lock_pos]->file_unlock();
 }
 
 void function_tester(char cond){
@@ -953,26 +959,46 @@ void flush_user(stringstream& file_name_ss, User* user_obj, int offset){
 	stringstream buf_ss;
 	
 	// set a fixed width stringstream to pad each field, then write to file
-	buf_ss.width(MAX_USER_LEN); 						buf_ss << user_obj->username;		
-	user_file << buf_ss.str();							buf_ss.str("");
-	buf_ss.width(MAX_PWD_LEN); 						buf_ss << user_obj->password;		
-	user_file << buf_ss.str();							buf_ss.str("");
-	buf_ss.width(MAX_ID_LEN); 							buf_ss << user_obj->id;		
-	user_file << buf_ss.str();							buf_ss.str("");
-	buf_ss.width(MAX_FNM_LEN+MAX_LNM_LEN+1); 			buf_ss << user_obj->full_name;		
-	user_file << buf_ss.str();							buf_ss.str("");
-	buf_ss.width(4); 									buf_ss << user_obj->age;		
-	user_file << buf_ss.str();							buf_ss.str("");
-	buf_ss.width(MAX_EML_LEN); 						buf_ss << user_obj->email;		
-	user_file << buf_ss.str();							buf_ss.str("");
-	buf_ss.width(MAX_FLR_LEN); 						buf_ss << user_obj->followers;		
-	user_file << buf_ss.str();							buf_ss.str("");
-	buf_ss.width(MAX_FLE_LEN); 						buf_ss << user_obj->followees;		
-	user_file << buf_ss.str();							buf_ss.str("");
-	buf_ss.width(1); 									buf_ss << user_obj->free_bit;		
-	user_file << buf_ss.str();							buf_ss.str("");
-	buf_ss.width(MAX_NUM_WOOTS); 						buf_ss << user_obj->num_woots;		
-	user_file << buf_ss.str();							buf_ss.str("");
+	buf_ss.width(MAX_USER_LEN); 						
+	buf_ss << user_obj->username;		
+	user_file << buf_ss.str();							
+	buf_ss.str("");
+	buf_ss.width(MAX_PWD_LEN); 						
+	buf_ss << user_obj->password;		
+	user_file << buf_ss.str();							
+	buf_ss.str("");
+	buf_ss.width(MAX_ID_LEN); 							
+	buf_ss << user_obj->id;		
+	user_file << buf_ss.str();							
+	buf_ss.str("");
+	buf_ss.width(MAX_FNM_LEN+MAX_LNM_LEN+1); 			
+	buf_ss << user_obj->full_name;		
+	user_file << buf_ss.str();							
+	buf_ss.str("");
+	buf_ss.width(4); 									
+	buf_ss << user_obj->age;		
+	user_file << buf_ss.str();							
+	buf_ss.str("");
+	buf_ss.width(MAX_EML_LEN); 						
+	buf_ss << user_obj->email;		
+	user_file << buf_ss.str();							
+	buf_ss.str("");
+	buf_ss.width(MAX_FLR_LEN); 						
+	buf_ss << user_obj->followers;		
+	user_file << buf_ss.str();							
+	buf_ss.str("");
+	buf_ss.width(MAX_FLE_LEN); 						
+	buf_ss << user_obj->followees;		
+	user_file << buf_ss.str();							
+	buf_ss.str("");
+	buf_ss.width(1); 									
+	buf_ss << user_obj->free_bit;		
+	user_file << buf_ss.str();							
+	buf_ss.str("");
+	buf_ss.width(MAX_NUM_WOOTS); 						
+	buf_ss << user_obj->num_woots;		
+	user_file << buf_ss.str();							
+	buf_ss.str("");
 	buf_ss << endl; 
 	user_file << buf_ss.str();
 	user_file.close();
@@ -1106,6 +1132,8 @@ User* create_new_user(User* user_obj){
     * and does not further check if the user is in the database already.
     Returns a NULL pointer if failed somehow.
     */
+    cout << "Thread: " << this_thread::get_id() << " entered create_new_user " << endl;
+    cout << "User_obj: username=" << user_obj->username << endl;
     int current_line=0;
     string fids_path = "/var/www/html/fids/fids.txt";
     int result=access(fids_path.c_str(), F_OK);
@@ -1157,9 +1185,10 @@ User* create_new_user(User* user_obj){
 		
 		int str_pos=mt_open(user_path_ss.str(), user_file);
 		//~ user_file.open(user_path_ss.str().c_str());
-		
+		//~ 
 		if(!user_file){
 			cerr << "Error opening: " << user_path_ss.str() << endl;
+			mt_close(str_pos, user_file);
 			exit(7);
 		}
 		int current_id=0;
@@ -1176,11 +1205,17 @@ User* create_new_user(User* user_obj){
 				user_obj->followees=0;
 				user_obj->num_woots=0;
 				user_obj->free_bit='n';
-				mt_close(str_pos, user_file);
-				//~ user_file.close();
+				user_file.close(); // super hacky way of not having to do mt_open in flush user
 				
 				flush_user(user_path_ss, user_obj, current_id*MAX_ULINE_LEN);								
 				fids_decrease(user_obj->id / USERS_PER_FILE);
+				
+				// now every other thread is waiting on our lock
+				// and now there's no race condition to flushing user or decreasing fids
+				// shouldnt have any weird problems
+				user_file.open(user_path_ss.str().c_str());
+				mt_close(str_pos, user_file);
+				
 				return user_obj;
 			}
 			user_file.seekg(MAX_ULINE_LEN-1, user_file.cur);
