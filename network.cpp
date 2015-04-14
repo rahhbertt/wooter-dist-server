@@ -518,6 +518,42 @@ int mt_open(string path, fstream& user_file){
 	// the file lock you need?) is way less sequentialism than
 	// ANY TIME ANYBODY IS EVER USING A SINGLE FILE EVER, NOBODY ELSE CAN PROCEED
 	
+	
+	
+	
+	
+	
+	// what actually needs to be done is not a vector of unique locks
+	// but a similar idea, with a vector of file object wrappers, each with their own
+	// mutex field
+	
+	
+	// so each time you have a file name, mt open, and if not found, CREATE the wrapper
+	// it has it sown mutex
+	// now unique_lock that mutex
+	// any thread trying to open the same file is now waiting, any other thread proceeds no problem
+	// and still need fixed vector size since no mutex move constructor
+	// and uniquelock move constructor iffy, plus its not even in the class
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
 	int str_pos=0;
 	bool found=false;
 	while( str_pos < num_active ){
