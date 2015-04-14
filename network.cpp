@@ -30,6 +30,7 @@ using namespace std;
 mutex globy;
 vector<unique_lock<mutex>*> all_locks(1000); // arbitrary limit, would use larger number or transaction model in practice
 vector<string> file_names(1000);
+int num_active=0;
 
 struct User{
 public:
@@ -504,6 +505,54 @@ void multi_threaded_tester(char cond){
 	// unflush does not error check, assumes youve already found the user and are just pulling out
 
 	
+}
+
+int mt_open(string path, fstream& user_file){
+	
+	// protect this with a giant OPEN lock, so while one is figuring out it slock
+	// others cant also be doing so, and potentially doubly try to create a lock?
+	
+	// in reality need a condition variable
+	// this is a critical region in itself, distributing or creating appropriate locks
+	// but a cond_var here (and a notify_all/notify after unlocking hte cv and going to lock
+	// the file lock you need?) is way less sequentialism than
+	// ANY TIME ANYBODY IS EVER USING A SINGLE FILE EVER, NOBODY ELSE CAN PROCEED
+	
+	int str_pos=0;
+	bool found=false;
+	while( str_pos < num_active ){
+		if(file_names[str_pos]==path){ 
+			found=true;
+			break;
+		}
+		str_pos++;
+	}
+	if(!found){
+		//~ mutex* temp_mut = new mutex;
+		unique_lock<mutex> temp_lock(*(new mutex));
+		//~ unique_lock<mutex>  temp_lock= new unique_lock(new mutex);
+
+		unique_lock<mutex>* temp_lock_2=new unique_lock<mutex>;
+		(*temp_lock_2)=std::move(temp_lock); // move assignment
+		// lock it before pushing back, so no race condition of accsesing the push abck before the locking
+		all_locks[num_active]=&temp_lock;	
+		// no race conditions now
+		file_names[num_active]=path;
+		str_pos=num_active;
+		num_active++;	
+	
+	} else{ // it was found
+		all_locks[str_pos]->lock();
+		// lock that lock and wait
+	}
+	user_file.open(path); // open the path
+	return str_pos;	
+}
+
+void mt_close(int str_pos, fstream& user_file){
+	all_locks[str_pos]->unlock();
+	user_file.close();
+
 }
 
 void function_tester(char cond){
@@ -1069,7 +1118,10 @@ User* create_new_user(User* user_obj){
 	// if the file exists, it has free space for new users, since we checked the fids
 	else { 
 		fstream user_file;
-		user_file.open(user_path_ss.str().c_str());
+		
+		int str_pos=mt_open(user_path_ss.str(), user_file);
+		//~ user_file.open(user_path_ss.str().c_str());
+		
 		if(!user_file){
 			cerr << "Error opening: " << user_path_ss.str() << endl;
 			exit(7);
@@ -1088,7 +1140,9 @@ User* create_new_user(User* user_obj){
 				user_obj->followees=0;
 				user_obj->num_woots=0;
 				user_obj->free_bit='n';
-				user_file.close();
+				mt_close(str_pos, user_file);
+				//~ user_file.close();
+				
 				flush_user(user_path_ss, user_obj, current_id*MAX_ULINE_LEN);								
 				fids_decrease(user_obj->id / USERS_PER_FILE);
 				return user_obj;
