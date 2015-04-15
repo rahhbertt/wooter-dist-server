@@ -87,8 +87,8 @@ vector<string>* load_woots(User* home_user, int num_woots, char seq='n');
 
 
 int main(int argc, char **argv) {	
-	//~ net_connection(argv);
-	multi_threaded_tester('y');
+	net_connection(argv);
+	//~ multi_threaded_tester('y');
 	return 0;
 }
 
@@ -260,8 +260,6 @@ void handle_php(int connfd, char* cmd, int cmd_size){
 	* such as an empty user object returned on a read_user() command.
 	* 	Thus all exit(code) lines are simply for local testing and impossible-case debugging of the .cpp code.
 	*/	
-	//~ unique_lock<mutex> request_lock(globy, defer_lock);
-	//~ request_lock.lock();
 	
 	stringstream received_ss;// make a stream out of the message
 	received_ss.str(string(cmd));
@@ -375,7 +373,6 @@ void handle_php(int connfd, char* cmd, int cmd_size){
 	delete cmd;
 	cmd=nullptr;
 	close(connfd);
-	//~ request_lock.unlock();
 }
 
 void net_connection(char** argv){
@@ -502,22 +499,11 @@ void multi_threaded_tester(char cond){
 			fullest_name_ss.clear();
 			usey->username=fullest_name_ss.str();
 			fullest_name_ss.str("");
-			
-			//~ unique_lock<mutex> create_lock(globy);
-			//~ globy.lock();
-			//~ cout << "user*: " << (int64_t)usey << "\ti: " << i << "\tname: "<< usey->username;
-			//~ cout << "\tthread: " << this_thread::get_id() << endl;
-			
+
 			User* cpy=usey;
 			join_back.push_back(thread([cpy] { create_new_user(cpy); } ) );
 			join_back[join_back.size()-1].detach();
-			//~ new_usey.detach();
-			
-			//~ new_usey.join();
-			//~ create_lock.unlock();
 		}
-		//~ delete usey; //omg so stupid
-		//~ usey=NULL; // I'm deleting the user object as the thread is trying to do its job
 	}
 	this_thread::sleep_for(chrono::seconds(7));
 	for(size_t i=0; i<clean_up.size(); i++){
@@ -533,10 +519,8 @@ void multi_threaded_tester(char cond){
 		delete clean_up[i];
 		clean_up[i]=nullptr;
 	}
-	//~ User* usey2=unflush_user("/var/www/html/users/u_1.txt", 4*MAX_ULINE_LEN);
-	// unflush does not error check, assumes youve already found the user and are just pulling out
 
-		cout << endl << " ending mt_tester " << endl;
+	cout << endl << " ending mt_tester " << endl;
 }
 
 class FileLock{
