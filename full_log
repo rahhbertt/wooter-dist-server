@@ -1,0 +1,80 @@
+Thread: 140737337190144 entered create_new_user 
+User_obj: username=test_accy1
+Thread: 140737337190144		accessed	global lock	in mt_open
+Thread: 140737328797440 entered create_new_user 
+User_obj: username=test_accy2
+FileLock created for: /var/www/html/fids/fids.txt
+Thread: 140737337190144			wait for	lock: /var/www/html/fids/fids.txt
+Thread: 140737337190144 		obtained	lock: /var/www/html/fids/fids.txt
+Thread: 140737337190144		released	global lock	in mt_open
+Thread: 140737328797440		accessed	global lock	in mt_open
+Thread: 140737328797440			wait for	lock: /var/www/html/fids/fids.txt
+Thread: 140737337190144	closing file: /var/www/html/fids/fids.txt
+Thread: 140737337190144 		pre-release	lock: /var/www/html/fids/fids.txt
+Thread: 140737337190144 		released	lock: /var/www/html/fids/fids.txt
+Thread: 140737320404736 entered create_new_user 
+User_obj: username=test_accy3
+Thread: 140737328797440 		obtained	lock: /var/www/html/fids/fids.txt
+Thread: 140737328797440		released	global lock	in mt_open
+Thread: 140737337190144		accessed	global lock	in mt_open
+Thread: 140737328797440	closing file: /var/www/html/fids/fids.txt
+Thread: 140737328797440 		pre-release	lock: Thread: 140737312012032 entered create_new_user 
+User_obj: username=test_accy4
+/var/www/html/fids/fids.txt
+Thread: 140737328797440 		released	lock: /var/www/html/fids/fids.txt
+FileLock created for: Thread: 140737303619328 entered create_new_user 
+User_obj: username=test_accy5
+/var/www/html/users/u_0.txtThread: 140737085699840 entered create_new_user 
+User_obj: username=test_accy6
+
+Thread: 140737337190144			wait for	lock: /var/www/html/users/u_0.txt
+Thread: 140737337190144 		obtained	lock: /var/www/html/users/u_0.txt
+Thread: 140737337190144Thread: 140737077307136 entered create_new_user 
+User_obj: username=test_accy7
+		released	global lock	in mt_openThread: 140737068914432 entered create_new_user 
+User_obj: username=test_accy8
+
+Thread: 140737060521728 entered create_new_user 
+User_obj: username=test_accy9
+Thread: 140737085699840		accessed	global lock	in mt_open
+Thread: 140737085699840			wait for	lock: /var/www/html/fids/fids.txt
+Thread: 140737085699840 		obtained	lock: /var/www/html/fids/fids.txt
+Thread: 140737085699840		released	global lock	in mt_open
+Thread: 140737052129024 entered create_new_user 
+User_obj: username=test_accy10
+Thread: 140737068914432		accessed	global lock	in mt_open
+Thread: 140737068914432			wait for	lock: /var/www/html/fids/fids.txt
+Thread: 140737085699840	closing file: /var/www/html/fids/fids.txt
+Thread: 140737085699840 		pre-release	lock: /var/www/html/fids/fids.txt
+Thread: 140737085699840 		released	lock: /var/www/html/fids/fids.txt
+Thread: 140737068914432 		obtained	lock: /var/www/html/fids/fids.txt
+Thread: 140737068914432		released	global lock	in mt_open
+Thread: 140737085699840		accessed	global lock	in mt_open
+Thread: 140737085699840			wait for	lock: /var/www/html/users/u_0.txt
+Thread: 140737068914432	closing file: /var/www/html/fids/fids.txt
+Thread: 140737068914432 		pre-release	lock: /var/www/html/fids/fids.txt
+Thread: 140737068914432 		released	lock: /var/www/html/fids/fids.txt
+Thread: 140737043736320 entered create_new_user 
+User_obj: username=test_accy11
+Thread: 140737035343616 entered create_new_user 
+User_obj: username=test_accy12
+Thread: 140736481720064 entered create_new_user 
+User_obj: username=test_accy13
+Thread: 140736473327360 entered create_new_user 
+User_obj: username=test_accy14
+user*: 6446640	j: 0	name: test_accy1
+user*: 6446992	j: 1	name: test_accy2
+user*: 6447408	j: 2	name: test_accy3
+user*: 6448272	j: 3	name: test_accy4
+user*: 6449264	j: 4	name: test_accy5
+user*: 6449920	j: 5	name: test_accy6
+user*: 6450304	j: 6	name: test_accy7
+user*: 6451712	j: 7	name: test_accy8
+user*: 6451936	j: 8	name: test_accy9
+user*: 6449840	j: 9	name: test_accy10
+user*: 6453216	j: 10	name: test_accy11
+user*: 6454208	j: 11	name: test_accy12
+user*: 6454784	j: 12	name: test_accy13
+user*: 6455168	j: 13	name: test_accy14
+
+ ending mt_tester 
