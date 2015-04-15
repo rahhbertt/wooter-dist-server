@@ -87,8 +87,8 @@ vector<string>* load_woots(User* home_user, int num_woots, char seq='n');
 
 
 int main(int argc, char **argv) {	
-	net_connection(argv);
-	//~ multi_threaded_tester('y');
+	//~ net_connection(argv);
+	multi_threaded_tester('y');
 	return 0;
 }
 
@@ -502,23 +502,24 @@ void multi_threaded_tester(char cond){
 
 			User* cpy=usey;
 			join_back.push_back(thread([cpy] { create_new_user(cpy); } ) );
-			join_back[join_back.size()-1].detach();
+			//~ join_back.push_back(thread([i] { cout << "thread: " << i << endl; } ) );
+			//~ join_back[join_back.size()-1].detach();
 		}
 	}
-	this_thread::sleep_for(chrono::seconds(7));
-	for(size_t i=0; i<clean_up.size(); i++){
-		cout << "user*: " << (int64_t)(clean_up[i]) << "\tj: " << i << "\tname: " << clean_up[i]->username << endl;
-	}
-	this_thread::sleep_for(chrono::seconds(30));
-	//~ for(size_t i=0; i<join_back.size(); i++){
-		//~ join_back[i].join();
-		//~ cout << "joined #" << i << endl;
+	//~ this_thread::sleep_for(chrono::seconds(7));
+	//~ for(size_t i=0; i<clean_up.size(); i++){
+		//~ cout << "user*: " << (int64_t)(clean_up[i]) << "\tj: " << i << "\tname: " << clean_up[i]->username << endl;
 	//~ }
-	
-	for(size_t i=0; i<clean_up.size(); i++){
-		delete clean_up[i];
-		clean_up[i]=nullptr;
+	//~ this_thread::sleep_for(chrono::seconds(30));
+	for(size_t i=0; i<join_back.size(); i++){
+		join_back[i].join();
+		cout << "joined #" << i << endl;
 	}
+	//~ 
+	//~ for(size_t i=0; i<clean_up.size(); i++){
+		//~ delete clean_up[i];
+		//~ clean_up[i]=nullptr;
+	//~ }
 
 	cout << endl << " ending mt_tester " << endl;
 }

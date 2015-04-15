@@ -1,9 +1,9 @@
-FLAGS = -Wall -g -std=c++11
+FLAGS = -Wall -g 
 
 all: wooter
 
 wooter: network.cpp
-	g++ ${FLAGS} -o networks network.cpp -pthread
+	g++ ${FLAGS} network.cpp -o networks -pthread -std=c++11 -Wl,--no-as-needed
 
 clean: 
 	rm -r fids flwes flwrs users woots
