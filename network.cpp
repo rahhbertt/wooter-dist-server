@@ -31,10 +31,9 @@
 using namespace std;
 mutex globy; // currently testing this at handle php
 mutex globy2; // currently testing this at mt_open
-vector<unique_lock<mutex>*> all_locks(1000); // arbitrary limit, would use larger number or transaction model in practice
-vector<string> file_names(1000);
+//~ vector<unique_lock<mutex>*> all_locks(1000); // arbitrary limit, would use larger number or transaction model in practice
+//~ vector<string> file_names(1000);
 int num_active=0;
-
 class FileLock;
 vector<FileLock*> file_locks(1000);
 
@@ -485,9 +484,10 @@ void net_connection(char** argv){
 
 void multi_threaded_tester(char cond){	
 	vector<User*> clean_up;
+	vector<thread> join_back;
 	User* usey = nullptr;
 	if(cond=='y'){
-		for(int i=1; i <15; i++){ 				
+		for(int i=0; i <40; i++){ 				
 			usey=new User;
 			usey->username="test_accy";
 			usey->password="test_passwdy";
@@ -509,8 +509,9 @@ void multi_threaded_tester(char cond){
 			//~ cout << "\tthread: " << this_thread::get_id() << endl;
 			
 			User* cpy=usey;
-			thread new_usey([cpy] { create_new_user(cpy); } ); 
-			new_usey.detach();
+			join_back.push_back(thread([cpy] { create_new_user(cpy); } ) );
+			join_back[join_back.size()-1].detach();
+			//~ new_usey.detach();
 			
 			//~ new_usey.join();
 			//~ create_lock.unlock();
@@ -523,6 +524,11 @@ void multi_threaded_tester(char cond){
 		cout << "user*: " << (int64_t)(clean_up[i]) << "\tj: " << i << "\tname: " << clean_up[i]->username << endl;
 	}
 	this_thread::sleep_for(chrono::seconds(30));
+	//~ for(size_t i=0; i<join_back.size(); i++){
+		//~ join_back[i].join();
+		//~ cout << "joined #" << i << endl;
+	//~ }
+	
 	for(size_t i=0; i<clean_up.size(); i++){
 		delete clean_up[i];
 		clean_up[i]=nullptr;
@@ -561,46 +567,42 @@ void FileLock::file_unlock(){
 // mt_open and mt_close should not open and close actual files
 // if you want to deal with a file, check existence, etc, mt_open
 int mt_open(string path){
-	// 1) protect this critical region with a giant lock to test. 
-	// 2) change giant lock to a condition variable, just because more efficient than busy waiting
-	// this code is a critical region in itself, distributing or creating appropriate locks
-	// but a cond_var here (and a notify_all/notify after unlocking hte cv and going to lock
-	// the file lock you need?) is way less sequentialism than
-	// ANY TIME ANYBODY IS EVER USING A SINGLE FILE EVER, NOBODY ELSE CAN PROCEED
+	/* 
+	Distributing locks here is a critical region in itself.
+	A condition variable is unnecessary as the "condition" has only two values: somebody is in the region or they are not.
+	* Thus a simple big lock suffices. A cond_var however would do away with the busy waiting of a lock. 
+	* Thus a cond_var may be used in future revisions.
 	
-	
-	// so each time you have a file name, mt open, and if not found, CREATE the wrapper
-	// it has it sown mutex
-	// now unique_lock that mutex
-	// any thread trying to open the same file is now waiting, any other thread proceeds no problem
-	// and still need fixed vector size since no mutex move constructor
-	// and uniquelock move constructor iffy, plus its not even in the class			
-	unique_lock<mutex> global_ul(globy2);
-	//~ globy.lock();
+	A big lock is necessary here so that there are no race conditions in checking if a given FileLock
+	* has already been created, and double creating. This does introduce a bottleneck of sequentialism
+	* but it allows for creating a lock per file object, and thus is far less sequential than a single big lock for EVERY file access.
+
+	*/
+	unique_lock<mutex> global_ul(globy2); // lock this critical region
 	cout << "Thread: " << this_thread::get_id() << "\t\taccessed\tglobal lock\tin mt_open" << endl;
 	int lock_pos=0;
 	bool found=false;
-	while( lock_pos < num_active ){
+	while( lock_pos < num_active ){ // try to find the position of the desired FielLock
 		if(file_locks[lock_pos]->get_name()==path){ 
 			found=true;
 			break;
 		}
 		lock_pos++;
 	}
-	if(!found){
+	if(!found){ // if not found, create it on the heap to avoid needing to deal with move construction
 		FileLock* new_fl= new FileLock(path);
-		file_locks[num_active]=(new_fl); // would this scope out if local? move construciton and whatnot
-		new_fl->file_lock();
-		num_active++;	
+		file_locks[num_active]=(new_fl); 
+		num_active++; // using a fixed size vector to avoid resizing/move construction. thus inc the real count
+		global_ul.unlock(); 
+		// MUST unlock this region before attempting to lock your FileLock, so that a single FileLock attempt does not hold up EVERY call to mt_open
+		// that would simply lead to deadlocks. this way only threads waiting on the same FileLock object wait on each other		
+		new_fl->file_lock(); 
 	} else{ // it was found
+		global_ul.unlock(); // unlock this critical region, action is done, again must do so to avoid deadlock
+		
 		file_locks[lock_pos]->file_lock();
-		// lock that lock and wait
-	}
-	//~ user_file.open(path); // open the path
-	
+	}	
 	cout << "Thread: " << this_thread::get_id() << "\t\treleased\tglobal lock\tin mt_open" << endl;
-	//~ globy.unlock();
-	global_ul.unlock();
 	return lock_pos;	
 }
 
@@ -1057,10 +1059,6 @@ void fids_decrease(int line_num){
 	fids.close();
 }
 
-condition_variable fids;
-mutex fids_lock;
-mutex cruf_lock; // create user file
-
 // no string& since usually passing in literals
 void create_file(string file_type, string file_row_s, string file_column_s){
 	/*
@@ -1149,39 +1147,30 @@ User* create_new_user(User* user_obj){
     * and does not further check if the user is in the database already.
     Returns a NULL pointer if failed somehow.
     */
-    cout << "Thread: " << this_thread::get_id() << " entered create_new_user " << endl;
-    cout << "User_obj: username=" << user_obj->username << endl;
-    int current_line=0;
 	
-	// critical region determining if fids exists
-	//~ unique_lock<mutex> fids_ul(fids_lock);
-    string fids_path = "/var/www/html/fids/fids.txt";
-  
-    // lock the fids file so 1 access at a time to it
-    int lock_num=mt_open(fids_path);
-    int result=access(fids_path.c_str(), F_OK);
+	// no read/write locks are implemented to save time and complexity, but that does mean busy waiting on the fids when no writing is taking place
+	// justifiable by the low volume of simultaneous create_new_user calls
+	// overall approach: lock fids, lock necessary file, unlock necessary file, unlock fids; one atomic operation
+	// code is not very exception safe since, although using a unique lock, its global and won't scope out on a given thread getting an exception
+ 
+    //~ cout << "Thread: " << this_thread::get_id() << " entered create_new_user " << endl;
+    //~ cout << "User_obj: username=" << user_obj->username << endl;   
+    int current_line=0;
+	// critical region determining if fids exists, reading it, and updating it
+    string fids_path = "/var/www/html/fids/fids.txt";  
+	int lock_fids=mt_open(fids_path); // do so to allow only one access (read or write) to fids at a given time
+    int result=access(fids_path.c_str(), F_OK); // keep the fids lock until the end of the function
+    
     if( (result < 0) && (errno == ENOENT) ) { // if file does not exist
     	create_file("fids","0","0"); 
-		//~ fids_ul.unlock();
-		mt_close(lock_num);
     }
 	else{ // if file does exist
-		//~ fids_ul.unlock();
-		//~ mt_close(lock_num);
-// continue having it open
-// this is just a read here, but avoid implementing read/write locks iwth MORE complexity
-// just have a general file lock for each file.
-// ONE read/write access at a time
-// so YES, no read locks means every call to create sequentially bottlenecked
-// to the fids, which is just reading here. but create calls are few
-		
 		fstream fids; // gave up the "i" so that wouldnt have to template mt_open
-		//~ lock_num=mt_open(fids_path);
 		fids.open(fids_path.c_str());
 		if(!fids){
 			cerr << "Error opening: " << fids_path << endl;
 			fids.close();
-			mt_close(lock_num);
+			mt_close(lock_fids); // release the lock if exiting
 			exit(5);
 		}
 		int num_free=0;
@@ -1194,19 +1183,12 @@ User* create_new_user(User* user_obj){
 			else { break; }
 		}
 		fids.close();
-		mt_close(lock_num);
 	} // current line is now which user file you want
-
-	// critical region so that two threads do not try to both create a file 
-	// can't use file lock since file not necessarily opened
-	// condition variable for a simple 2-value condition (locked or not) is basically just a lock
-	//~ unique_lock<mutex> cruf_ul(cruf_lock);
 	
 	// if the user file does not exist, make it, flush the user, update fids
 	stringstream user_path_ss;
 	user_path_ss << FILE_PATH <<  "/users/u_" << current_line << ".txt";
-	//~ int lock_fids=lock_num;
-	lock_num=mt_open(user_path_ss.str()); // lock the file you're about to create or mod
+	int lock_uf=mt_open(user_path_ss.str()); // lock the file you're about to create or mod
 	result=access(user_path_ss.str().c_str(), F_OK);
 	if( (result < 0) && (errno == ENOENT) ) { 
 		int user_id=current_line*USERS_PER_FILE;
@@ -1218,39 +1200,27 @@ User* create_new_user(User* user_obj){
 		user_obj->followees=0;
 		user_obj->num_woots=0;
 		user_obj->free_bit='n';
-		
-	//~ int fids_lnum=mt_open(fids_path); // whether create or mod, have to access fids		
-		fids_decrease((user_obj->id/USERS_PER_FILE));
+		fids_decrease((user_obj->id/USERS_PER_FILE)); // this is why still need the fids_lock
 		flush_user(user_path_ss, user_obj, 0); // 0 since this is a new file being made
-		mt_close(lock_num);
-		//~ mt_close(fids_lnum);
-		//~ mt_close(lock_fids);
-		//~ cruf_ul.unlock();
+		mt_close(lock_uf); // release the user file lock first
+		mt_close(lock_fids); // then release the fids lock, to respect this ordering
 		return user_obj;
-	}
-	// if the file exists, it has free space for new users, since we checked the fids
-	else { 
-		//~ cruf_ul.unlock();
-
-
+	} 
+	else { // if the file exists, it has free space for new users, since we checked the fids
 		// if file exists, you still have the lock on the file, proceed
 		fstream user_file;
-		
-		//~ int str_pos=mt_open(user_path_ss.str(), user_file);
 		user_file.open(user_path_ss.str().c_str());
-		//~ 
 		if(!user_file){
 			cerr << "Error opening: " << user_path_ss.str() << endl;
-			mt_close(lock_num);
-		//~ mt_close(lock_fids);
+			mt_close(lock_uf); // release user lock, then fids lock, respect the ordering
+			mt_close(lock_fids);
 			exit(7);
 		}
 		int current_id=0;
 		char current_bit='\0';
 		int bit_pos=MAX_ULINE_LEN-MAX_NUM_WOOTS-1-1;
-		user_file.seekg(bit_pos, user_file.cur);
-		
-		 while(current_id<USERS_PER_FILE){ // scan until you find the first free spot
+		user_file.seekg(bit_pos, user_file.cur);		
+		while(current_id<USERS_PER_FILE){ // scan until you find the first free spot
 		 	current_bit='\0';
 		 	user_file >> current_bit;
 			if(current_bit=='\000'){  // fstream wont read whitespace
@@ -1259,31 +1229,23 @@ User* create_new_user(User* user_obj){
 				user_obj->followees=0;
 				user_obj->num_woots=0;
 				user_obj->free_bit='n';
-				user_file.close(); // super hacky way of not having to do mt_open in flush user
-				
-				// lock the fids
-				//~ int fids_lnum=mt_open(fids_path);
+				user_file.close(); 
+				// no actual mt_open IN fids_decrease of flush_user
+				// protected by the fids lock
 				fids_decrease(user_obj->id / USERS_PER_FILE);
-
 				// protected by the overarching mt_open on this user file
 				flush_user(user_path_ss, user_obj, current_id*MAX_ULINE_LEN);								
-								
-				// now every other thread is waiting on our lock
-				// and now there's no race condition to flushing user or decreasing fids
-				// shouldnt have any weird problems
-				//~ user_file.open(user_path_ss.str().c_str());
-				mt_close(lock_num);
-				//~ mt_close(fids_lnum);
-		//~ mt_close(lock_fids);				
+				mt_close(lock_uf);	// respect the order	
+				mt_close(lock_fids);		
 				return user_obj;
 			}
 			user_file.seekg(MAX_ULINE_LEN-1, user_file.cur);
 			current_id+=1;
 		}
 	}
-	mt_close(lock_num);
-		//~ mt_close(lock_fids);
-	return NULL;
+	mt_close(lock_uf); // respect the other
+	mt_close(lock_fids);
+	return nullptr;
 }
 
 User* unflush_user(string file_name, int offset, bool unsure){	
