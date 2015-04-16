@@ -479,17 +479,41 @@ void net_connection(char** argv){
 	
 }
 
+void test_follow(){
+	vector<thread> join_back2;
+	for(int i=0; i<40; i++){
+		User* usey8=read_id(i%40);
+		for(int j=i+20; j<i+60; j++){
+			User* usey9;
+			if((i%40)==(j%40)){ usey9=read_id((j+1)%40); }
+			else { usey9=read_id((j)%40); }
+			if(usey8!=NULL && usey9!=NULL) {  
+				join_back2.push_back(thread([&] { follow(usey8, usey9); } ));
+			}
+			usey9=NULL;
+		}
+		usey8=NULL;
+	}
+	for(size_t i=0; i<join_back2.size(); i++){
+		join_back2[i].join();
+		cout << "flw_joined #" << i << endl;
+	}
+}
+
+
 void multi_threaded_tester(char cond){	
 	vector<User*> clean_up;
 	vector<thread> join_back;
 	User* usey = nullptr;
+	
+	// create users for first time
 	if(cond=='y'){
 		for(int i=0; i <40; i++){ 				
 			usey=new User;
 			usey->username="test_accy";
 			usey->password="test_passwdy";
 			usey->full_name="Test's_First_name Test's_Last_name";
-			usey->age=25;
+			usey->age=311;
 			usey->email="testemaily@emails.com";
 			string original_name=usey->username;
 			clean_up.push_back(usey);
@@ -505,27 +529,17 @@ void multi_threaded_tester(char cond){
 			////~ join_back.push_back(thread([i] { cout << "thread: " << i << endl; } ) );
 		//	//~ join_back[join_back.size()-1].detach();
 		}
-	}
-	
-		
-	for(size_t i=0; i<join_back.size(); i++){
+	}	
+	for(size_t i=0; i<join_back.size(); i++){ // join these threads so following commands have users to act on
 		join_back[i].join();
-		cout << "joined #" << i << endl;
+		cout << "create__joined #" << i << endl;
 	}
-	
-	for(size_t i=0; i<clean_up.size(); i++){
+	for(size_t i=0; i<clean_up.size(); i++){ // clean up heap memory
 		delete clean_up[i];
 		clean_up[i]=nullptr;
 	}
 	
-	//~ // this_thread::sleep_for(chrono::seconds(7)); // so users actually exist when try to read
-	//~ 
-	//~ //for(size_t i=0; i<clean_up.size(); i++){
-		//~ //cout << "user*: " << (int64_t)(clean_up[i]) << "\tj: " << i << "\tname: " << clean_up[i]->username << endl;
-	//~ //}
-	//~ // this_thread::sleep_for(chrono::seconds(30));
-	
-	
+	// read users by username
 	vector<thread> join_back2;
 	for(int i=0; i <40; i++){ 				
 		string original_name="test_accy";
@@ -538,13 +552,16 @@ void multi_threaded_tester(char cond){
 
 		join_back2.push_back(thread([original_name, i] { cout << "ZZ\ti:\t" << i << endl << user_explode(read_user(original_name)) << endl; }) );
 		//~ //join_back[join_back.size()-1].detach();
+		// heap memory being lost here
+		join_back2.push_back(thread([i] { User* read_u=read_id(i); cout << "QQ\ti:\t" << i << "\t"; if(read_u!=NULL){ cout << user_explode(read_id(i)) << endl; } } ));
+	
 	}
 
-	
-	
+	//~ test_follow();
+
 	for(size_t i=0; i<join_back2.size(); i++){
 		join_back2[i].join();
-		cout << "joined #" << i << endl;
+		cout << "end_joined #" << i << endl;
 	}
 
 
@@ -633,7 +650,7 @@ mutex& mt_open(string path){
 
 	*/
 	unique_lock<mutex> global_ul(globy2); // lock this critical region
-	cout << "Thread: " << this_thread::get_id() << "\t\taccessed\tglobal lock\tin mt_open" << endl;
+	cout << "Thread: " << this_thread::get_id() << "\t\twaiting on\tlock:\t" << path << endl;
 	int lock_pos=0;
 	bool found=false;
 	while( lock_pos < num_active ){ // try to find the position of the desired FielLock
@@ -647,16 +664,17 @@ mutex& mt_open(string path){
 		FileLock* new_fl= new FileLock(path);
 		file_locks[num_active]=(new_fl); 
 		num_active++; // using a fixed size vector to avoid resizing/move construction. thus inc the real count
+		cout << "Thread: " << this_thread::get_id() << "\t\tobtained\tlock:\t" << path << endl;
 		global_ul.unlock(); 
 		// MUST unlock this region before attempting to lock your FileLock, so that a single FileLock attempt does not hold up EVERY call to mt_open
 		// that would simply lead to deadlocks. this way only threads waiting on the same FileLock object wait on each other		
 		return new_fl->mut();
 	} else{ // it was found
+		cout << "Thread: " << this_thread::get_id() << "\t\tobtained\tlock:\t" << path << endl;
 		global_ul.unlock(); // unlock this critical region, action is done, again must do so to avoid deadlock
 		return file_locks[lock_pos]->mut();
 	}	
-	cout << "Thread: " << this_thread::get_id() << "\t\treleased\tglobal lock\tin mt_open" << endl;
-	
+
 	// serious error
 	//~ return lock_pos;	
 }
@@ -1440,7 +1458,12 @@ User* read_id(int id_num){
 	*/
 	stringstream file_name_ss;
 	file_name_ss << FILE_PATH << "/users/u_" << id_num/USERS_PER_FILE << ".txt";
-	return unflush_user(file_name_ss.str(), MAX_ULINE_LEN*(id_num % USERS_PER_FILE), true); // unsure if valid ID
+
+	unique_lock<mutex> uf_lock(mt_open(file_name_ss.str()));
+	User* result=unflush_user(file_name_ss.str(), MAX_ULINE_LEN*(id_num % USERS_PER_FILE), true); // unsure if valid ID
+	uf_lock.unlock();
+	
+	return result;
 }
 
 string already_following(User* home_user, int followee_id, char type){
