@@ -87,8 +87,8 @@ vector<string>* load_woots(User* home_user, int num_woots, char seq='n');
 
 
 int main(int argc, char **argv) {	
-	net_connection(argv);
-	//~ multi_threaded_tester('y');
+	//~ net_connection(argv);
+	multi_threaded_tester('y');
 	return 0;
 }
 
@@ -479,25 +479,34 @@ void net_connection(char** argv){
 	
 }
 
-void test_follow(){
+void test_follow(char type){
 	vector<thread> join_back2;
+	int num_flw=45;
+	if(type=='u') { num_flw=10; }
 	for(int i=0; i<45; i++){
 		User* usey8=read_id(i%40);
-		for(int j=i+0; j<i+45; j++){
+		for(int j=i+0; j<i+num_flw; j++){
 			User* usey9;
 			if((i%40)==(j%40)){ usey9=read_id((j+1)%40); }
 			else { usey9=read_id((j)%40); }
 			if(usey8!=NULL && usey9!=NULL) {  
-				join_back2.push_back(thread([usey8, usey9] { follow(usey8, usey9); } ));
+				
+				if(type=='f'){
+					join_back2.push_back(thread([usey8, usey9] { follow(usey8, usey9); } ));
+				}
+				else if(type=='u'){
+					join_back2.push_back(thread([usey8, usey9] { unfollow(usey8, usey9); } ));
+				}
+				join_back2[join_back2.size()-1].detach();
 			}
 			//~ usey9=NULL;
 		}
 		//~ usey8=NULL;
 	}
-	for(size_t i=0; i<join_back2.size(); i++){
-		join_back2[i].join();
-		cout << "flw_joined #" << i << endl;
-	}
+	//~ for(size_t i=0; i<join_back2.size(); i++){
+		//~ join_back2[i].join();
+		//~ cout << "flw_joined #" << i << endl;
+	//~ }
 }
 
 
@@ -538,7 +547,10 @@ void multi_threaded_tester(char cond){
 		delete clean_up[i];
 		clean_up[i]=nullptr;
 	}
+
+	test_follow('f');
 	
+	// main thread can't leave until follow is done
 	// read users by username
 	vector<thread> join_back2;
 	for(int i=0; i <40; i++){ 				
@@ -550,21 +562,26 @@ void multi_threaded_tester(char cond){
 		original_name=fullest_name_ss.str();
 		fullest_name_ss.str("");
 
-		join_back2.push_back(thread([original_name, i] { cout << "ZZ\ti:\t" << i << endl << user_explode(read_user(original_name)) << endl; }) );
+		//~ join_back2.push_back(thread([original_name, i] { cout << "ZZ\ti:\t" << i << endl << user_explode(read_user(original_name)) << endl; }) );
 		//~ //join_back[join_back.size()-1].detach();
 		// heap memory being lost here
-		join_back2.push_back(thread([i] { User* read_u=read_id(i); cout << "QQ\ti:\t" << i << "\t"; if(read_u!=NULL){ cout << user_explode(read_id(i)) << endl; } } ));
-	
+		//~ join_back2.push_back(thread([i] { User* read_u=read_id(i); cout << "QQ\ti:\t" << i << "\t"; if(read_u!=NULL){ cout << user_explode(read_id(i)) << endl; } } ));
+		join_back2.push_back(thread([i] { cout << "Read_cult:\t" << load_following(read_id(i),"r", 20) << endl; }) );	
 	}
 
-	test_follow();
+	//~ test_follow('f');
+
+
+
+	test_follow('u');
 
 	for(size_t i=0; i<join_back2.size(); i++){
 		join_back2[i].join();
 		cout << "end_joined #" << i << endl;
 	}
 
-
+	this_thread::sleep_for(chrono::seconds(5));
+	
 	cout << endl << " ending mt_tester " << endl;
 }
 
@@ -1835,40 +1852,51 @@ vector<int> load_following(User* home_user, string following_type, int num){
 	load_following() takes in the logged in user object, the kind of following (followers 
 	or followees), the # to read in, and then returns an array of those user IDs.
 	*/
-char type;
-if(following_type=="followees") { type='e'; }
-else if(following_type=="followers") { type='r'; }
-int user_row=home_user->id/USERS_PER_FILE;
-int current_column=0;
-stringstream file_name_ss;
-file_name_ss << FILE_PATH << "/flw" << type << "s/f" << type << "_r" << user_row << "c"
-<< current_column << ".txt";
-int followers_read=0;
-vector<int> cult;
+	char type;
+	if(following_type=="followees") { type='e'; }
+	else if(following_type=="followers") { type='r'; }
+	int user_row=home_user->id/USERS_PER_FILE;
+	int current_column=0;
+	stringstream file_name_ss;
+	file_name_ss << FILE_PATH << "/flw" << type << "s/f" << type << "_r" << user_row << "c"
+	<< current_column << ".txt";
+	int followers_read=0;
+	vector<int> cult;
+	
+	// lock the first file you need
+	// other threads may be modifying later files while you're using this one
+	// but thats okay, because it means that if you refresh, and somebody unfollowed you, you may or may not see that update
+	// based on the race condition, but that alone depends on network latency and whatnot, so its fine, you'd just refresh
+	
+	// if we were to lock ALL following files for a user upon every load following, or however many we need
+	// that would unnecessarily hold up all the other threads trying to make changes
+	
+	// maybe do implement a AS MANY LOCKS AS NEEDED policy instead of one at a time 
+	unique_lock<mutex> cult_lock(mt_open(file_name_ss.str()));
+	
+	int result=access(file_name_ss.str().c_str(), F_OK);
+	while( !((result < 0)&&(errno==ENOENT)) && followers_read < num){
+		ifstream following;
+		following.open(file_name_ss.str().c_str());
+		int line_num=home_user->id%USERS_PER_FILE;
+		following.seekg(line_num*(1+FLRS_PER_LINE*MAX_ID_LEN));
+		int flwrs_in_cur_file=FLRS_PER_LINE; 
 
-int result=access(file_name_ss.str().c_str(), F_OK);
-while( !((result < 0)&&(errno==ENOENT)) && followers_read < num){
-	ifstream following;
-	following.open(file_name_ss.str().c_str());
-	int line_num=home_user->id%USERS_PER_FILE;
-	following.seekg(line_num*(1+FLRS_PER_LINE*MAX_ID_LEN));
-	int flwrs_in_cur_file=FLRS_PER_LINE; 
+				// once read all the followers to load, even if this line not done, quit
+		for(int current_flr=0; (current_flr < flwrs_in_cur_file) && (followers_read < num); current_flr++){
+			int current_id=-1;
+			stringstream line_ss;
 
-			// once read all the followers to load, even if this line not done, quit
-	for(int current_flr=0; (current_flr < flwrs_in_cur_file) && (followers_read < num); current_flr++){
-		int current_id=-1;
-		stringstream line_ss;
+			char * buffer = new char [MAX_ID_LEN];
+			following.read(buffer,MAX_ID_LEN); 
+			string temp(buffer);
+			temp.resize(MAX_ID_LEN);
+			line_ss.str(temp);
+			string empty(MAX_ID_LEN, MY_DELIMITER);
+			delete[] buffer;
+			buffer=NULL;
 
-		char * buffer = new char [MAX_ID_LEN];
-		following.read(buffer,MAX_ID_LEN); 
-		string temp(buffer);
-		temp.resize(MAX_ID_LEN);
-		line_ss.str(temp);
-		string empty(MAX_ID_LEN, MY_DELIMITER);
-		delete[] buffer;
-		buffer=NULL;
-
-		if(line_ss.str() != empty){		
+			if(line_ss.str() != empty){		
 				line_ss.clear(); // after every read into int
 				line_ss >> current_id; // only read in an id if its not an empty line
 			}
@@ -1881,10 +1909,14 @@ while( !((result < 0)&&(errno==ENOENT)) && followers_read < num){
 		current_column++;		
 		file_name_ss.str("");
 		file_name_ss << FILE_PATH << "/flw" << type << "s/f" << type << "_r" << user_row << "c"
-		<< current_column << ".txt";
-		result=access(file_name_ss.str().c_str(), F_OK);
+			<< current_column << ".txt";
+
+		cult_lock.unlock(); // to grab the next lock.
+		cult_lock=unique_lock<mutex>(mt_open( file_name_ss.str()) );
 		
+		result=access(file_name_ss.str().c_str(), F_OK);	
 	}
+	cult_lock.unlock();
 	return cult;
 }
 

@@ -15,7 +15,7 @@ if(!file_exists("fids/fids.txt")){
 }
 else {
 	$usernum=0; $offset=1;
-	for($usernum=0; $usernum<20; $usernum++){
+	for($usernum=0; $usernum<=20; $usernum++){
 		for($offset=10; $offset<35; $offset++){
 			echo "User num: ".$usernum." Offset: ".($offset%20)."<br>";
 			$user_obj=read_user("test_acc".$usernum);
