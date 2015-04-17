@@ -259,6 +259,11 @@ function real_follow($home_user, $other_user, $port){
 	}
 	$request=format(format("follow",40).user_explode($home_user)." ".user_explode($other_user), $SEND_SIZE );
 	fwrite($fp, $request);
+	$line=fgets($fp);
+	$home_user=user_unexplode($home_user, $line);
+	$line=fgets($fp);
+	$other_user=user_unexplode($other_user, $line);
+	
 	fclose($fp);
 }
 
@@ -271,6 +276,11 @@ function real_unfollow($home_user, $other_user, $port){
 	}
 	$request=format(format("unfollow",40).user_explode($home_user)." ".user_explode($other_user), $SEND_SIZE );
 	fwrite($fp, $request);
+	$line=fgets($fp);
+	$home_user=user_unexplode($home_user, $line);
+	$line=fgets($fp);
+	$other_user=user_unexplode($other_user, $line);
+	
 	fclose($fp);
 	
 }
