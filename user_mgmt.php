@@ -9,7 +9,7 @@ class User{
 	public $username, $password, $id, $full_name, $age, $email;
 	public $followers, $followees, $free_bit, $num_woots;
 }
-$PORT_NUM=13092;
+$PORT_NUM=13091;
 $SEND_SIZE=560;
 $TIME_OUT=50;
 

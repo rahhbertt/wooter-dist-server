@@ -26,7 +26,7 @@
 #define	BUFFSIZE	8192
 #define  SA struct sockaddr
 #define	LISTENQ		1024
-#define PORT_NUM    13092
+#define PORT_NUM    13091
 
 using namespace std;
 mutex globy; // currently testing this at handle php
@@ -87,8 +87,8 @@ vector<string>* load_woots(User* home_user, int num_woots, char seq='n');
 
 
 int main(int argc, char **argv) {	
-	//~ net_connection(argv);
-	multi_threaded_tester('y');
+	net_connection(argv);
+	//~ multi_threaded_tester('y');
 	return 0;
 }
 
@@ -566,14 +566,15 @@ void multi_threaded_tester(char cond){
 		//~ //join_back[join_back.size()-1].detach();
 		// heap memory being lost here
 		//~ join_back2.push_back(thread([i] { User* read_u=read_id(i); cout << "QQ\ti:\t" << i << "\t"; if(read_u!=NULL){ cout << user_explode(read_id(i)) << endl; } } ));
-		join_back2.push_back(thread([i] { cout << "Read_cult:\t" << load_following(read_id(i),"r", 20) << endl; }) );	
+		join_back2.push_back(thread([i] { cout << "Read_cult: " << i << "\t" << cult_explode( load_following(read_id(i),"followees", 20) ) << endl; }) );	
+		//~ cout << "Read_cult:\t" << cult_explode( load_following(read_id(i),"followees", 20) ) << endl;
 	}
 
 	//~ test_follow('f');
 
 
 
-	test_follow('u');
+	//~ test_follow('u');
 
 	for(size_t i=0; i<join_back2.size(); i++){
 		join_back2[i].join();
@@ -1937,7 +1938,15 @@ void write_woot(User* home_user, string woot, string timestamp){
 	// you go straight to the woot file to write to, no need to scan
 	stringstream file_name_ss;
 	file_name_ss << FILE_PATH << "/woots/w_r" << row_val << "c" << col_val << ".txt";
+
 	
+	stringstream user_file_ss;
+	user_file_ss << FILE_PATH << "/users/u_" << home_user->id/USERS_PER_FILE << ".txt";
+
+	unique_lock<mutex> user_lock(mt_open(user_file_ss.str())); // lock the user first, to respect ordering of other functions
+	unique_lock<mutex> woots_lock(mt_open(file_name_ss.str())); // lock the file with the most recent woots	
+
+						
 	int result=access(file_name_ss.str().c_str(), F_OK);
 	while( !((result<0)&&(errno==ENOENT)) ){
 		// read woot by woot for empty spot, and write it and return
@@ -1945,6 +1954,10 @@ void write_woot(User* home_user, string woot, string timestamp){
 		woot_file.open(file_name_ss.str().c_str());
 		if(!woot_file){
 			cerr << "Could not open file: " << file_name_ss.str() << endl;
+			
+			woots_lock.unlock(); // close most recent lock first
+			user_lock.unlock(); // then outer lock
+			
 			exit(18);
 		}
 		woot_file.seekg( (home_user->id%USERS_PER_FILE)*(1+MAX_WOOT_LINE_LEN) );
@@ -1971,13 +1984,21 @@ void write_woot(User* home_user, string woot, string timestamp){
 				file_name_ss.clear();
 				file_name_ss << FILE_PATH << "/users/u_" << home_user->id/USERS_PER_FILE << ".txt";
 				flush_user(file_name_ss, home_user, (home_user->id%USERS_PER_FILE)*MAX_ULINE_LEN );
+				
+				woots_lock.unlock(); // close most recent lock first
+				user_lock.unlock(); // then outer lock
+
 				return;
-			} // if a woot exits, just read the next woot
+			} // if a woot exists, just read the next woot
 		}
 		woot_file.close();
 		col_val++;
 		file_name_ss.str("");
 		file_name_ss << FILE_PATH << "/woots/w_r" << row_val << "c" << col_val << ".txt";
+		
+		woots_lock.unlock();
+		woots_lock=unique_lock<mutex>(mt_open(file_name_ss.str())); // get the next lock
+		
 		result=access(file_name_ss.str().c_str(), F_OK);
 	} // if exit while loop, no empty spot exists, make a new file
 	
@@ -1985,12 +2006,16 @@ void write_woot(User* home_user, string woot, string timestamp){
 	conv << row_val << " " << col_val;
 	string rv, clv;
 	conv >> rv >> clv;
-	create_file("woots", rv, clv);
+	create_file("woots", rv, clv); // already have the lock on this file if exited while loop
 	
 	fstream woot_file;
 	woot_file.open(file_name_ss.str().c_str());
 	if(!woot_file){
 		cerr << "Could not open file: " << file_name_ss.str() << endl;
+		
+		woots_lock.unlock(); // close most recent lock first
+		user_lock.unlock(); // then outer lock
+		
 		exit(18);
 	}
 	woot_file.seekp( (home_user->id%USERS_PER_FILE)*(1+MAX_WOOT_LINE_LEN)); // for EOL
@@ -2003,6 +2028,9 @@ void write_woot(User* home_user, string woot, string timestamp){
 	file_name_ss.clear();
 	file_name_ss << FILE_PATH << "/users/u_" << home_user->id/USERS_PER_FILE << ".txt";
 	flush_user(file_name_ss, home_user, (home_user->id%USERS_PER_FILE)*MAX_ULINE_LEN);
+	
+	woots_lock.unlock(); // close most recent lock first
+	user_lock.unlock(); // then outer lock
 }
 
 vector<string>* load_woots_seq(User* home_user, int num_woots){
@@ -2028,6 +2056,9 @@ vector<string>* load_woots(User* home_user, int num_woots, char seq){
 	int woots_read=0;
 	vector<string>* woots=new vector<string>;	
 	
+	// lock the first file, only need woot files, not user files
+	unique_lock<mutex> woots_lock(mt_open(file_name_ss.str()));
+	
 	int result=access(file_name_ss.str().c_str(), F_OK);
 	while( !( (result<0) && (errno=ENOENT) ) && woots_read < num_woots ){
 		// read woot by woot for empty spot, and write it and return
@@ -2035,6 +2066,9 @@ vector<string>* load_woots(User* home_user, int num_woots, char seq){
 		woot_file.open(file_name_ss.str().c_str());
 		if(!woot_file){
 			cerr << "Could not open file: " << file_name_ss.str() << endl;
+			
+			woots_lock.unlock();
+			
 			exit(18);
 		}
 		int next_line=-1;
@@ -2072,7 +2106,14 @@ vector<string>* load_woots(User* home_user, int num_woots, char seq){
 		else if(seq=='n') { col_val--; }
 		file_name_ss.str("");
 		file_name_ss << FILE_PATH << "/woots/w_r" << row_val << "c" << col_val << ".txt";
+		
+		woots_lock.unlock(); // release this lock and grab the next
+		woots_lock=unique_lock<mutex>(mt_open(file_name_ss.str()));
+		
 		result=access(file_name_ss.str().c_str(), F_OK);
 	}
+	
+	woots_lock.unlock();
+	
 	return woots;
 }
