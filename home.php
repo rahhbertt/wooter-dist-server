@@ -149,7 +149,7 @@ function home_other($string){ if(isset($_GET['user'])){ echo $string; } }
 					<td></td>
 					<td align="center">
 						<p class="tcenter">  
-							<font class="tcolor" size="6"> <-Wooter 1.2-> </font> 
+							<font class="tcolor" size="6"> <-Wooter 1.3-> </font> 
 							<?php // if its your own home page, show a welcome message  		
 							if(!isset($_GET['user'])){ echo "</p><p><font class='tcolor'> Welcome to Your Wooter Home Page. </font>"; }
 							?>

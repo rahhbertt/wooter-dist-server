@@ -24,7 +24,14 @@
 #define	LISTENQ		1024
 #define PORT_NUM    13091
 
+#define MOVED_CONNFD -10
+
 using namespace std;
+
+// FORWARD DECLARATION of function needed for Functor class
+void handle_php(int connfd, char* cmd, int cmd_size);
+
+// CLASSES DEFINED
 struct User{
 	public:
 	string username, password, full_name, email;
@@ -34,19 +41,58 @@ struct User{
 class FileLock{
 	public:
 	FileLock() = delete;
-	FileLock(const string& file_path) : file_name(file_path) { cout << "FileLock created for: " << file_path << endl; }
+	FileLock(const string& file_path) : file_name(file_path) { 
+		cout << "FileLock created for: " << file_path << endl; 
+		file_mut=new mutex;
+	}
+	FileLock(FileLock& copied)= delete;
+	FileLock(FileLock&& moved) : file_name(moved.file_name) { 
+		cout << "FileLock being moved on: " << file_name << endl;
+		file_mut=moved.file_mut;
+		moved.file_mut=nullptr;
+	}
+	~FileLock(){ 
+		cout << "FileLock being destroyed on: " << file_name << endl;
+		if(file_mut!=nullptr){ delete file_mut; } 
+	}
 	const string& get_name() const { return file_name; }
-	mutex& mut(){ return file_mut; }
+	mutex& mut(){ return (*file_mut); }
 	
 	private:
 	string file_name;
-	mutex file_mut;
+	mutex* file_mut;
 };
-
+class Functor{
+	public:
+	Functor(int connfd, char* cmd, int size_of_msg) : connfd(connfd), clean_up(cmd) { 
+		cout << "Functor()" << endl;
+		operator()(connfd, cmd, size_of_msg);
+	}
+	Functor(const Functor&)=delete;
+	Functor(Functor&& other){ // never called, but just to be safe
+		cout << "Functor(const Functor&&)" << endl; 
+		connfd=other.connfd;
+		clean_up=other.clean_up;
+		other.connfd=MOVED_CONNFD;
+		other.clean_up=nullptr;
+	}
+	void operator()(int connfd, char* cmd, int size_of_msg){ 
+		cout << "Functor::operator()()" << endl;
+		handle_php(connfd, cmd, size_of_msg);
+	}
+	~Functor(){ 
+		cout << "~Functor()" << endl; 
+		if(connfd!=MOVED_CONNFD) { close(connfd); }
+		delete clean_up;
+	}
+	
+	private:
+	int connfd;
+	char* clean_up;
+};
 // GLOBAL VARIABLES
 mutex lock_distributor; // used by mt_open to handle lock distribution
-int num_active=0;
-vector<FileLock*> file_locks(1000);
+vector<FileLock> file_locks;
 
 // GLOBAL CONSTANTS
 const int  MIN_USER_LEN=8, MAX_USER_LEN=24+1, MIN_PWD_LEN=10, MAX_PWD_LEN=32+1, MAX_ID_LEN=10+1; // at most 10 digits for the # of users
@@ -123,30 +169,29 @@ mutex& mt_open(string path){
 	*/
 	unique_lock<mutex> global_ul(lock_distributor); // lock this critical region
 	cout << "Thread: " << this_thread::get_id() << "\t\twaiting on\tlock:\t" << path << endl;
-	int lock_pos=0;
+	size_t lock_pos=0;
 	bool found=false;
-	while( lock_pos < num_active ){ // try to find the position of the desired FielLock
-		if(file_locks[lock_pos]->get_name()==path){ 
+	while( lock_pos < file_locks.size() ){ // try to find the position of the desired FielLock
+		if(file_locks[lock_pos].get_name()==path){ 
 			found=true;
 			break;
 		}
 		lock_pos++;
 	}
 	if(!found){ // if not found, create it on the heap to avoid needing to deal with move construction
-		FileLock* new_fl= new FileLock(path);
-		file_locks[num_active]=(new_fl); 
-		num_active++; // using a fixed size vector to avoid resizing/move construction. thus inc the real count
+		file_locks.push_back(FileLock(path));
 		cout << "Thread: " << this_thread::get_id() << "\t\tobtained\tlock:\t" << path << endl;
+		int this_lock_pos=file_locks.size()-1; // before unlocking, to prevent race conditions
 		global_ul.unlock(); // MUST unlock this region before attempting to lock your FileLock, so that a single FileLock attempt does not hold up EVERY call to mt_open
-		// that would simply lead to deadlocks. this way only threads waiting on the same FileLock object wait on each other		
-		return new_fl->mut();
+		return file_locks[this_lock_pos].mut();// that would simply lead to deadlocks. this way only threads waiting on the same FileLock object wait on each other		
 	} else{ // it was found
 		cout << "Thread: " << this_thread::get_id() << "\t\tobtained\tlock:\t" << path << endl;
 		global_ul.unlock(); // unlock this critical region, action is done, again must do so to avoid deadlock
-		return file_locks[lock_pos]->mut();
+		return file_locks[lock_pos].mut();
 	}	
 	// serious error if ever get here
 }
+
 
 
 
@@ -1399,11 +1444,6 @@ void handle_php(int connfd, char* cmd, int cmd_size){
 		}
 	}
 	else { reply(connfd, received_str); } //invalid commands handled here
-
-	// about to close connection, clean up
-	delete cmd;
-	cmd=nullptr;
-	close(connfd);
 }
 
 void net_connection(char** argv){
@@ -1467,34 +1507,26 @@ void net_connection(char** argv){
 		int read_well=read(connfd, cmd, MSG_SIZE);
 		cmd[MSG_SIZE-1]='\0'; // stringstream's life is easier
 		cout << "Received cmd: " << cmd << endl;
-		if(read_well==MSG_SIZE){ 
-			
-			// copy connfd by value, so each thread keeps its own connfd
-			thread client_request([connfd, cmd] { handle_php(connfd, cmd, MSG_SIZE); });
+		if(read_well==MSG_SIZE){ // copy connfd by value, so each thread keeps its own connfd
+			thread client_request([connfd, cmd] { Functor handler(connfd, cmd, MSG_SIZE); });
 			client_request.detach(); // so if main exits we dont crash everything
 		} // else fails silently
 	}
 	
 	// 6. Close the connection with the current client and go back for another.
-	// 		This step has been moved to the end of handle_php so that each thread closes its own connection.
-	// 		NOTE: This is not exception-safe, and any crashed thread will not close that connfd.
+	// 		This step has been moved to the destructor of the Functor class so that
+	// 		we have exception safety and all network connections are eventually closed, 
+	//	 	even on threads that crash unexpectedly.
 }
 
 
 
 
-
-
-
-
-
-
-
-
+// NOTE: for most purposes of multi-threading testing and simulation, the same PHP testing code
+// was used as before, with modified instances of the code being reloaded simultaneously in a browser
+// to simulate multiple clients simultaneously connecting and then being threaded as requests.
 
 // CODE TESTING FUNCTIONS
-
-
 void function_tester(char cond='n'){
 	User* usey = new User;
 	usey->username="test_accy";
@@ -1846,9 +1878,9 @@ void test_follow(char type){
 	int num_flw=45;
 	if(type=='u') { num_flw=10; }
 	for(int i=0; i<45; i++){
-		User* usey8=read_id(i%40);
+		User* usey8=read_id(i%40); // the read_id() calls result in memory leaks.
 		for(int j=i+0; j<i+num_flw; j++){
-			User* usey9;
+			User* usey9; // this tester code was quick and dirty and will be improved for the future
 			if((i%40)==(j%40)){ usey9=read_id((j+1)%40); }
 			else { usey9=read_id((j)%40); }
 			if(usey8!=NULL && usey9!=NULL) {  
@@ -1859,7 +1891,6 @@ void test_follow(char type){
 				else if(type=='u'){
 					join_back2.push_back(thread([usey8, usey9] { unfollow(usey8, usey9); } ));
 				}
-				//~ join_back2[join_back2.size()-1].detach();
 			}
 		}
 	}
@@ -1872,7 +1903,7 @@ void test_follow(char type){
 void test_woot(){
 	vector<thread> join_back;
 	for(int i=0; i<40; i++){
-		User* usey14=read_id(i%40);
+		User* usey14=read_id(i%40); // memory leaks here as well. this tester code will be improved in the future
 		for( int j=0; j<40; j++) {
 			stringstream woot_ss;
 			woot_ss << "This is a test woot #: " << j << " of user id: " << usey14->id << " plus the random value " << rand()/100000;
@@ -1887,6 +1918,7 @@ void test_woot(){
 		cout << "woot_joined #" << i << endl;
 	}
 }
+
 void multi_threaded_tester(char cond='n'){	
 	vector<User*> clean_up;
 	vector<thread> join_back;
@@ -1935,7 +1967,7 @@ void multi_threaded_tester(char cond='n'){
 		original_name=fullest_name_ss.str();
 		fullest_name_ss.str("");
 
-		// heap memory being lost here
+		// heap memory being lost here excessively; tester code will be improved in the future
 		join_back2.push_back(thread([i] { cout << "Read_cult: " << i << "\t" << cult_explode( load_following(read_id(i),"followees", 20) ) << endl; }) );	
 		join_back2.push_back(thread( [i] { cout << "Alr_flw: " << i << "\t" << already_following(read_id(i), (i+1)%21, 'e') << endl; } ) );
 		join_back2.push_back(thread( [i] { vector<string>* woots=load_woots(read_id(i), 20); for(size_t j=0; j<woots->size(); j++) { cout << "read_woot: user:" << i << j << "\t " << (*woots)[j] << endl; } } ) );
@@ -1947,3 +1979,4 @@ void multi_threaded_tester(char cond='n'){
 	this_thread::sleep_for(chrono::seconds(5));
 	cout << endl << " ending mt_tester " << endl;
 }
+
