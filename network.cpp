@@ -22,7 +22,7 @@
 #define	BUFFSIZE	8192
 #define SA struct sockaddr
 #define	LISTENQ		1024
-#define PORT_NUM    13091
+#define PORT_NUM    13090
 
 #define MOVED_CONNFD -10
 
@@ -90,6 +90,7 @@ class Functor{
 	int connfd;
 	char* clean_up;
 };
+
 // GLOBAL VARIABLES
 mutex lock_distributor; // used by mt_open to handle lock distribution
 vector<FileLock> file_locks;
@@ -1525,6 +1526,9 @@ void net_connection(char** argv){
 // NOTE: for most purposes of multi-threading testing and simulation, the same PHP testing code
 // was used as before, with modified instances of the code being reloaded simultaneously in a browser
 // to simulate multiple clients simultaneously connecting and then being threaded as requests.
+// The multi_threaded tester code below was done in chunks to force and examine scenarios
+// of many, many threads acting on the same or similar file objects and ensure
+// a lack of deadlocks or race conditions.
 
 // CODE TESTING FUNCTIONS
 void function_tester(char cond='n'){
