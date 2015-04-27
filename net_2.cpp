@@ -17,14 +17,12 @@
 #include <sys/socket.h>  // socket, AF_INET, SOCK_STREAM,
                          // bind, listen, accept
 #include <netinet/in.h>  // servaddr, INADDR_ANY, htons
-#include <arpa/inet.h> // inet_addr
 
 #define	MAXLINE		4096
 #define	BUFFSIZE	8192
 #define SA struct sockaddr
 #define	LISTENQ		1024
-#define PORT_NUM    13094
-#define PORT_NUM_RM 13101
+#define PORT_NUM    13101
 
 #define MOVED_CONNFD -10
 
@@ -108,7 +106,7 @@ const int  USERS_PER_FILE=10, FID_HDR_LEN=5, FLRS_PER_LINE=10, MAX_FLR_LINE_LEN=
 const char MY_DELIMITER=' '; // while this is a global, the code will only function if this is a whitespace character
 const int  WOOTS_PER_LINE=10, MAX_WOOT_LEN=100, MAX_WOOT_TMSTP=22, MAX_WOOT_LINE=(10)*(100+1+22+1);
 const int  MAX_WOOT_LINE_LEN=WOOTS_PER_LINE*(MAX_WOOT_LEN+1+MAX_WOOT_TMSTP+1);
-const string FILE_PATH="/var/www/html";
+const string FILE_PATH="/var/www/html/rm_1";
 const int MSG_SIZE=560;
 	
 	
@@ -266,7 +264,7 @@ void fids_decrease(int line_num){
 	the number of free spots/ids (fids) in that file. If $line_num is larger than the # of lines,
 	a new line is written of $USERS_PER_FILE-1.
 	*/
-	string fids_path = FILE_PATH +"/fids/fids.txt";
+	string fids_path = FILE_PATH+"/fids/fids.txt";
 	fstream fids;
 	fids.open(fids_path.c_str());
 	if(!fids){
@@ -311,7 +309,7 @@ void create_file(string file_type, string file_row_s, string file_column_s){
     int file_column=atoi(file_column_s.c_str());
     stringstream file_name_ss;
     string start_path=FILE_PATH+"/";
-
+	
 	file_name_ss << start_path;
 	
 	// check if any of the dirs needed dont exist, if so, make them
@@ -1170,7 +1168,7 @@ void reply(int connfd, string msg){
 	string reply_s(reply_ss.str()); // make a string out of the stream
 	char* reply_c=new char[reply_s.size()]; // allocate space for a char* the size of our line
 	reply_s.copy(reply_c, reply_s.size() ); // fill that char* with the line's contents
-	write(connfd, reply_c, reply_s.size()); // write that char* with that size out to the network
+	//~ write(connfd, reply_c, reply_s.size()); // write that char* with that size out to the network
 	delete[] reply_c;
 }
 
@@ -1487,49 +1485,9 @@ void net_connection(char** argv){
 		exit(3);
 	} 
 	
-	// 3b. make socket to talk to RM
-	int	rm_connfd, conn_rm;  // Unix file descriptors. its just an int
-    struct sockaddr_in	rm_addr;  // Note C use of struct
-    // 1. Create the socket
-    //~ if ((rm_connfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-    	//~ perror("Unable to create a socket");
-    	//~ exit(1);
-    //~ }
-    // 2. Set up the sockaddr_in
-    // zero it.  
-    // bzero(&servaddr, sizeof(servaddr)); // Note bzero is "deprecated".  Sigh.
-    memset(&rm_addr, 0, sizeof(rm_addr));
-    rm_addr.sin_family      = AF_INET; // Specify the family
-    // use any network card present
-    rm_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-	rm_addr.sin_port        = htons(PORT_NUM_RM);	// wooter file server
-
-	//~ if (connect(rm_connfd , (struct sockaddr *)&rm_addr , sizeof(rm_addr)) < 0 ) {
-        //~ perror("connect failed. Error");
-    //~ }     
-    //~ puts("Connected\n");
-    //~ char RM_msg[MSG_SIZE]="creates_new_user   garbge";
-    //~ char RM_msg_2[MSG_SIZE]=" dont create_new_user, dont do it man   garbge";
-    //~ // int bytes_sent=send(rm_connfd, RM_msg, strlen(RM_msg), 0);
-    //~ int bytes_sent=0;    
-    //~ 
-   	//~ // bytes_sent=send(rm_connfd, RM_msg, MSG_SIZE, 0);
-	//~ bytes_sent=write(rm_connfd, RM_msg, MSG_SIZE);	
-	//~ cout << "Bytes sent:" << bytes_sent << endl;
-
-
-	int bytes_sent=0;
+	// REPLY HERE HAS WRITE() COMMENTED OUT, WE DONT CARE ABOUT A REPLY TO THE PRIMARY
 
 	for ( ; ; ) {
-		// create a client socket to talk to the RM
-		if ((rm_connfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-			perror("Unable to create a socket");
-			exit(1);
-		}
-		// connect the client socket to the RM
-		if (connect(rm_connfd , (struct sockaddr *)&rm_addr , sizeof(rm_addr)) < 0 ) {
-			perror("connect failed. Error");
-		}     
         // 5. Block until someone connects.
         //    We could provide a sockaddr if we wanted to know details of whom
         //    we are talking to.
@@ -1547,20 +1505,13 @@ void net_connection(char** argv){
 		char* cmd= new char[MSG_SIZE]; // dynamic array so each thread has its own heap cmd
 		int read_well=read(connfd, cmd, MSG_SIZE);
 		cmd[MSG_SIZE-1]='\0'; // stringstream's life is easier
-		
-		// before processing the command yourself, tell the RM to do it in parallel
-		//~ bytes_sent=send(rm_connfd, RM_msg, strlen(RM_msg), 0);
-		bytes_sent=write(rm_connfd, cmd, MSG_SIZE);
-		
-		cout << "Bytes sent:" << bytes_sent << endl;
+
 		
 		cout << "Received cmd: " << cmd << endl;
 		if(read_well==MSG_SIZE){ // copy connfd by value, so each thread keeps its own connfd
 			thread client_request([connfd, cmd] { Functor handler(connfd, cmd, MSG_SIZE); });
 			client_request.detach(); // so if main exits we dont crash everything
 		} // else fails silently
-		
-		close(rm_connfd); // only need to tell RM the command, and dont care about any replies
 	}
 	
 	// 6. Close the connection with the current client and go back for another.

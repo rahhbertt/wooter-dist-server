@@ -17,14 +17,13 @@
 #include <sys/socket.h>  // socket, AF_INET, SOCK_STREAM,
                          // bind, listen, accept
 #include <netinet/in.h>  // servaddr, INADDR_ANY, htons
-#include <arpa/inet.h> // inet_addr
+#include<arpa/inet.h> //inet_addr
 
 #define	MAXLINE		4096
 #define	BUFFSIZE	8192
 #define SA struct sockaddr
 #define	LISTENQ		1024
-#define PORT_NUM    13094
-#define PORT_NUM_RM 13101
+#define PORT_NUM    13091
 
 #define MOVED_CONNFD -10
 
@@ -266,7 +265,7 @@ void fids_decrease(int line_num){
 	the number of free spots/ids (fids) in that file. If $line_num is larger than the # of lines,
 	a new line is written of $USERS_PER_FILE-1.
 	*/
-	string fids_path = FILE_PATH +"/fids/fids.txt";
+	string fids_path = "/var/www/html/fids/fids.txt";
 	fstream fids;
 	fids.open(fids_path.c_str());
 	if(!fids){
@@ -310,10 +309,8 @@ void create_file(string file_type, string file_row_s, string file_column_s){
     int file_row=atoi(file_row_s.c_str());
     int file_column=atoi(file_column_s.c_str());
     stringstream file_name_ss;
-    string start_path=FILE_PATH+"/";
+    string start_path="/var/www/html/";
 
-	file_name_ss << start_path;
-	
 	// check if any of the dirs needed dont exist, if so, make them
     vector<string> dirs;
     dirs.push_back("users");
@@ -387,7 +384,7 @@ User* create_new_user(User* user_obj){
     Returns a NULL pointer if failed somehow.
     */
     int current_line=0;
-    string fids_path = FILE_PATH+"/fids/fids.txt";  
+    string fids_path = "/var/www/html/fids/fids.txt";  
     unique_lock<mutex> fids_ul(mt_open(fids_path));		// OBTAIN THE FIDS LOCK
     int result=access(fids_path.c_str(), F_OK); 
     
@@ -1448,7 +1445,7 @@ void handle_php(int connfd, char* cmd, int cmd_size){
 			else { reply(connfd, "NO"); }
 		}
 	}
-	else { reply(connfd, received_ss.str() ); } //invalid commands handled here
+	else { reply(connfd, received_str); } //invalid commands handled here
 }
 
 void net_connection(char** argv){
@@ -1485,51 +1482,10 @@ void net_connection(char** argv){
 	if (listen(listenfd, LISTENQ) == -1) {
 		perror("Unable to listen");
 		exit(3);
-	} 
-	
-	// 3b. make socket to talk to RM
-	int	rm_connfd, conn_rm;  // Unix file descriptors. its just an int
-    struct sockaddr_in	rm_addr;  // Note C use of struct
-    // 1. Create the socket
-    //~ if ((rm_connfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-    	//~ perror("Unable to create a socket");
-    	//~ exit(1);
-    //~ }
-    // 2. Set up the sockaddr_in
-    // zero it.  
-    // bzero(&servaddr, sizeof(servaddr)); // Note bzero is "deprecated".  Sigh.
-    memset(&rm_addr, 0, sizeof(rm_addr));
-    rm_addr.sin_family      = AF_INET; // Specify the family
-    // use any network card present
-    rm_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-	rm_addr.sin_port        = htons(PORT_NUM_RM);	// wooter file server
+	}
 
-	//~ if (connect(rm_connfd , (struct sockaddr *)&rm_addr , sizeof(rm_addr)) < 0 ) {
-        //~ perror("connect failed. Error");
-    //~ }     
-    //~ puts("Connected\n");
-    //~ char RM_msg[MSG_SIZE]="creates_new_user   garbge";
-    //~ char RM_msg_2[MSG_SIZE]=" dont create_new_user, dont do it man   garbge";
-    //~ // int bytes_sent=send(rm_connfd, RM_msg, strlen(RM_msg), 0);
-    //~ int bytes_sent=0;    
-    //~ 
-   	//~ // bytes_sent=send(rm_connfd, RM_msg, MSG_SIZE, 0);
-	//~ bytes_sent=write(rm_connfd, RM_msg, MSG_SIZE);	
-	//~ cout << "Bytes sent:" << bytes_sent << endl;
-
-
-	int bytes_sent=0;
 
 	for ( ; ; ) {
-		// create a client socket to talk to the RM
-		if ((rm_connfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-			perror("Unable to create a socket");
-			exit(1);
-		}
-		// connect the client socket to the RM
-		if (connect(rm_connfd , (struct sockaddr *)&rm_addr , sizeof(rm_addr)) < 0 ) {
-			perror("connect failed. Error");
-		}     
         // 5. Block until someone connects.
         //    We could provide a sockaddr if we wanted to know details of whom
         //    we are talking to.
@@ -1545,22 +1501,14 @@ void net_connection(char** argv){
 
    		// We had a connection.  Do whatever our task is.
 		char* cmd= new char[MSG_SIZE]; // dynamic array so each thread has its own heap cmd
+		
 		int read_well=read(connfd, cmd, MSG_SIZE);
 		cmd[MSG_SIZE-1]='\0'; // stringstream's life is easier
-		
-		// before processing the command yourself, tell the RM to do it in parallel
-		//~ bytes_sent=send(rm_connfd, RM_msg, strlen(RM_msg), 0);
-		bytes_sent=write(rm_connfd, cmd, MSG_SIZE);
-		
-		cout << "Bytes sent:" << bytes_sent << endl;
-		
 		cout << "Received cmd: " << cmd << endl;
 		if(read_well==MSG_SIZE){ // copy connfd by value, so each thread keeps its own connfd
 			thread client_request([connfd, cmd] { Functor handler(connfd, cmd, MSG_SIZE); });
 			client_request.detach(); // so if main exits we dont crash everything
 		} // else fails silently
-		
-		close(rm_connfd); // only need to tell RM the command, and dont care about any replies
 	}
 	
 	// 6. Close the connection with the current client and go back for another.
@@ -1568,6 +1516,7 @@ void net_connection(char** argv){
 	// 		we have exception safety and all network connections are eventually closed, 
 	//	 	even on threads that crash unexpectedly.
 }
+
 
 
 
@@ -1598,7 +1547,7 @@ void function_tester(char cond='n'){
 		delete usey;
 		usey=NULL;
 	}
-	User* usey2=unflush_user(FILE_PATH+"/users/u_1.txt", 4*MAX_ULINE_LEN);
+	User* usey2=unflush_user("/var/www/html/users/u_1.txt", 4*MAX_ULINE_LEN);
 	// unflush does not error check, assumes youve already found the user and are just pulling out
 	
 	cerr << endl << endl << "The results of unflushing u_1.txt at line # 4 are below: " << endl  
