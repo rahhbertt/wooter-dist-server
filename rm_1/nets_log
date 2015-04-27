@@ -1,0 +1,24 @@
+Received cmd: create_new_user                         test_acc0                test_psswd0                                 Test's_First_name Test's_Last_name_+_0              0   test_email@0.com                                                                                                                                                                                                                                                                                                                                                                                          
+Functor()
+Functor::operator()()
+Thread: 139838248654592		waiting on	lock:	/var/www/html/rm_1/fids/fids.txt
+FileLock created for: /var/www/html/rm_1/fids/fids.txt
+FileLock being moved on: /var/www/html/rm_1/fids/fids.txt
+FileLock being destroyed on: /var/www/html/rm_1/fids/fids.txt
+Thread: 139838248654592		obtained	lock:	/var/www/html/rm_1/fids/fids.txt
+Received cmd: create_new_user                         test_acc1                test_psswd1                      0          Test's_First_name Test's_Last_name_+_1              100 test_email@1.com                                                                                     0          0          n0                                                                                                                                                                                                                                                                             
+Functor()
+Functor::operator()()
+Thread: 139838240261888		waiting on	lock:	/var/www/html/rm_1/fids/fids.txt
+Thread: 139838240261888		obtained	lock:	/var/www/html/rm_1/fids/fids.txt
+Thread: 139838248654592		waiting on	lock:	/var/www/html/rm_1/users/u_0.txt
+FileLock created for: /var/www/html/rm_1/users/u_0.txt
+FileLock being moved on: /var/www/html/rm_1/users/u_0.txt
+FileLock being moved on: /var/www/html/rm_1/fids/fids.txt
+FileLock being destroyed on: /var/www/html/rm_1/fids/fids.txt
+FileLock being destroyed on: /var/www/html/rm_1/users/u_0.txt
+Thread: 139838248654592		obtained	lock:	/var/www/html/rm_1/users/u_0.txt
+~Functor()
+Thread: 139838240261888		waiting on	lock:	/var/www/html/rm_1/users/u_0.txt
+Thread: 139838240261888		obtained	lock:	/var/www/html/rm_1/users/u_0.txt
+~Functor()

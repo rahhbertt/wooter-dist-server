@@ -24,7 +24,7 @@
 #define SA struct sockaddr
 #define	LISTENQ		1024
 #define PORT_NUM    13094
-#define PORT_NUM_RM 13101
+#define PORT_NUM_RM 13102
 
 #define MOVED_CONNFD -10
 
@@ -1354,15 +1354,18 @@ void handle_php(int connfd, char* cmd, int cmd_size){
 	}
 	else if(received_str=="flush_user"){
 		User* flush=user_unexplode(received_ss);
-		if(flush!=0){ 
+		if(flush!=NULL){ 
+			
+			User* rm_id_fix=read_user(flush->username);
+			flush->id=rm_id_fix->id;
+			delete rm_id_fix;
+			rm_id_fix=nullptr;
+			
 			stringstream file_path_ss;
 			file_path_ss << FILE_PATH <<  "/users/u_" << flush->id/USERS_PER_FILE << ".txt";
-			
 			unique_lock<mutex> user_lock(mt_open(file_path_ss.str()) ); // lock the user file
-			
 			flush_user(file_path_ss, flush, (flush->id%USERS_PER_FILE)*(MAX_ULINE_LEN) );
 			reply(connfd, user_explode(flush) ); // unnecessary network traffic, but just in case
-			
 			user_lock.unlock(); // release the lock
 		}
 		delete flush;
@@ -1379,6 +1382,16 @@ void handle_php(int connfd, char* cmd, int cmd_size){
 		User* home_user=user_unexplode(received_ss);
 		User* other_user=user_unexplode(received_ss); // since by &, this should work
 		if( home_user!=NULL && other_user != NULL){ 
+			
+			User* rm_id_fix=read_user(home_user->username);
+			home_user->id=rm_id_fix->id;
+			delete rm_id_fix;
+			rm_id_fix=read_user(other_user->username);
+			other_user->id=rm_id_fix->id;
+			delete rm_id_fix;
+			rm_id_fix=nullptr;
+			
+			
 			follow(home_user, other_user); 
 			reply(connfd, user_explode(home_user)); // need to update user stats on client end
 			reply(connfd, user_explode(other_user));
@@ -1388,6 +1401,15 @@ void handle_php(int connfd, char* cmd, int cmd_size){
 		User* home_user=user_unexplode(received_ss);
 		User* other_user=user_unexplode(received_ss); // since by &, this should work
 		if( home_user!=NULL && other_user != NULL){ 
+			
+			User* rm_id_fix=read_user(home_user->username);
+			home_user->id=rm_id_fix->id;
+			delete rm_id_fix;
+			rm_id_fix=read_user(other_user->username);
+			other_user->id=rm_id_fix->id;
+			delete rm_id_fix;
+			rm_id_fix=nullptr;
+			
 			unfollow(home_user, other_user); 
 			reply(connfd, user_explode(home_user)); // need to update user stats on client end
 			reply(connfd, user_explode(other_user));
@@ -1411,6 +1433,12 @@ void handle_php(int connfd, char* cmd, int cmd_size){
 		string woot=unexplode_woot(received_ss);
 		string timestamp=unexplode_ts(received_ss);
 		if(home_user!=NULL){
+			
+			User* rm_id_fix=read_user(home_user->username);
+			home_user->id=rm_id_fix->id;
+			delete rm_id_fix;
+			rm_id_fix=nullptr;
+			
 			write_woot(home_user, woot, timestamp);
 			reply(connfd, user_explode(home_user) ); // have to increment num_woots
 		} 
@@ -1451,14 +1479,12 @@ void handle_php(int connfd, char* cmd, int cmd_size){
 	else { reply(connfd, received_ss.str() ); } //invalid commands handled here
 }
 
-void net_connection(char** argv){
-	/*
+void listen_socket(int& listenfd, int& connfd, struct sockaddr_in& servaddr){  
+   	/*
 	  From Stevens Unix Network Programming, vol 1.
 	  Minor modifications by John Sterling
-	  Further minor modifications (in step 5) by Robert Ryszewski
+	  Further minor modifications by Robert Ryszewski
 	 */
-	int	listenfd, connfd;  // Unix file descriptors. its just an int
-    struct sockaddr_in	servaddr;  // Note C use of struct
     // 1. Create the socket
     if ((listenfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
     	perror("Unable to create a socket");
@@ -1478,23 +1504,27 @@ void net_connection(char** argv){
 		perror("Unable to bind port");
 		exit(2);
 	}
-
-
-    // 4. Tell the system that we are going to use this sockect for
+	
+	// 4. Tell the system that we are going to use this sockect for
     //    listening and request a queue length
 	if (listen(listenfd, LISTENQ) == -1) {
 		perror("Unable to listen");
 		exit(3);
 	} 
-	
-	// 3b. make socket to talk to RM
-	int	rm_connfd, conn_rm;  // Unix file descriptors. its just an int
-    struct sockaddr_in	rm_addr;  // Note C use of struct
+}
+
+void rm_socket(int& rm_connfd, struct sockaddr_in& rm_addr){
+	/*
+	  From Stevens Unix Network Programming, vol 1.
+	  Minor modifications by John Sterling
+	  Further minor modifications by Robert Ryszewski
+	*/
+	 
     // 1. Create the socket
-    //~ if ((rm_connfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-    	//~ perror("Unable to create a socket");
-    	//~ exit(1);
-    //~ }
+    if ((rm_connfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+    	perror("Unable to create a socket");
+    	exit(1);
+    }
     // 2. Set up the sockaddr_in
     // zero it.  
     // bzero(&servaddr, sizeof(servaddr)); // Note bzero is "deprecated".  Sigh.
@@ -1504,44 +1534,37 @@ void net_connection(char** argv){
     rm_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
 	rm_addr.sin_port        = htons(PORT_NUM_RM);	// wooter file server
 
-	//~ if (connect(rm_connfd , (struct sockaddr *)&rm_addr , sizeof(rm_addr)) < 0 ) {
-        //~ perror("connect failed. Error");
-    //~ }     
-    //~ puts("Connected\n");
-    //~ char RM_msg[MSG_SIZE]="creates_new_user   garbge";
-    //~ char RM_msg_2[MSG_SIZE]=" dont create_new_user, dont do it man   garbge";
-    //~ // int bytes_sent=send(rm_connfd, RM_msg, strlen(RM_msg), 0);
-    //~ int bytes_sent=0;    
-    //~ 
-   	//~ // bytes_sent=send(rm_connfd, RM_msg, MSG_SIZE, 0);
-	//~ bytes_sent=write(rm_connfd, RM_msg, MSG_SIZE);	
-	//~ cout << "Bytes sent:" << bytes_sent << endl;
+	if (connect(rm_connfd , (struct sockaddr *)&rm_addr , sizeof(rm_addr)) < 0 ) {
+        perror("connect failed. Error");
+    }     
+    
+}
 
-
+void net_connection(char** argv){
+	int	listenfd, connfd;  // Unix file descriptors. its just an int
+    struct sockaddr_in	servaddr;  // Note C use of struct
+	listen_socket(listenfd, connfd, servaddr);
+	
+	int rm_connfd;
+	struct sockaddr_in rm_addr;
+	rm_socket(rm_connfd, rm_addr);
+	
 	int bytes_sent=0;
+	
+	//~ char RM_msg[MSG_SIZE]="just a friendly test message meaning no harm";
+	//~ bytes_sent=write(rm_connfd, RM_msg, MSG_SIZE);
+	//~ bytes_sent=write(rm_connfd, RM_msg, MSG_SIZE);
 
 	for ( ; ; ) {
-		// create a client socket to talk to the RM
-		if ((rm_connfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-			perror("Unable to create a socket");
-			exit(1);
-		}
-		// connect the client socket to the RM
-		if (connect(rm_connfd , (struct sockaddr *)&rm_addr , sizeof(rm_addr)) < 0 ) {
-			perror("connect failed. Error");
-		}     
         // 5. Block until someone connects.
-        //    We could provide a sockaddr if we wanted to know details of whom
-        //    we are talking to.
-        //    Last arg is where to put the size of the sockaddr if
-        //    we asked for one
+        //    We could provide a sockaddr if we wanted to know details of whom we are talking to.
+        //    Last arg is where to put the size of the sockaddr if we asked for one
 		fprintf(stderr, "Ready to connect.\n");
 		if ((connfd = accept(listenfd, (SA *) NULL, NULL)) == -1) {
 			perror("accept failed");
 			exit(4);
 		}
 		fprintf(stderr, "Connected\n");
-		string capture;
 
    		// We had a connection.  Do whatever our task is.
 		char* cmd= new char[MSG_SIZE]; // dynamic array so each thread has its own heap cmd
@@ -1549,20 +1572,15 @@ void net_connection(char** argv){
 		cmd[MSG_SIZE-1]='\0'; // stringstream's life is easier
 		
 		// before processing the command yourself, tell the RM to do it in parallel
-		//~ bytes_sent=send(rm_connfd, RM_msg, strlen(RM_msg), 0);
 		bytes_sent=write(rm_connfd, cmd, MSG_SIZE);
-		
-		cout << "Bytes sent:" << bytes_sent << endl;
-		
+		cout << "Bytes sent:" << bytes_sent << endl;		
 		cout << "Received cmd: " << cmd << endl;
 		if(read_well==MSG_SIZE){ // copy connfd by value, so each thread keeps its own connfd
 			thread client_request([connfd, cmd] { Functor handler(connfd, cmd, MSG_SIZE); });
 			client_request.detach(); // so if main exits we dont crash everything
-		} // else fails silently
-		
-		close(rm_connfd); // only need to tell RM the command, and dont care about any replies
+		} // else fails silently	
+		//~ close(rm_connfd); // only need to tell RM the command, and dont care about any replies
 	}
-	
 	// 6. Close the connection with the current client and go back for another.
 	// 		This step has been moved to the destructor of the Functor class so that
 	// 		we have exception safety and all network connections are eventually closed, 

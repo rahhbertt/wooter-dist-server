@@ -17,13 +17,12 @@
 #include <sys/socket.h>  // socket, AF_INET, SOCK_STREAM,
                          // bind, listen, accept
 #include <netinet/in.h>  // servaddr, INADDR_ANY, htons
-#include<arpa/inet.h> //inet_addr
 
 #define	MAXLINE		4096
 #define	BUFFSIZE	8192
 #define SA struct sockaddr
 #define	LISTENQ		1024
-#define PORT_NUM    13091
+#define PORT_NUM    13102
 
 #define MOVED_CONNFD -10
 
@@ -83,7 +82,7 @@ class Functor{
 	}
 	~Functor(){ 
 		cout << "~Functor()" << endl; 
-		if(connfd!=MOVED_CONNFD) { close(connfd); }
+		//~ if(connfd!=MOVED_CONNFD) { close(connfd); }
 		delete clean_up;
 	}
 	
@@ -107,7 +106,7 @@ const int  USERS_PER_FILE=10, FID_HDR_LEN=5, FLRS_PER_LINE=10, MAX_FLR_LINE_LEN=
 const char MY_DELIMITER=' '; // while this is a global, the code will only function if this is a whitespace character
 const int  WOOTS_PER_LINE=10, MAX_WOOT_LEN=100, MAX_WOOT_TMSTP=22, MAX_WOOT_LINE=(10)*(100+1+22+1);
 const int  MAX_WOOT_LINE_LEN=WOOTS_PER_LINE*(MAX_WOOT_LEN+1+MAX_WOOT_TMSTP+1);
-const string FILE_PATH="/var/www/html";
+const string FILE_PATH="/var/www/html/rm_1";
 const int MSG_SIZE=560;
 	
 	
@@ -265,7 +264,7 @@ void fids_decrease(int line_num){
 	the number of free spots/ids (fids) in that file. If $line_num is larger than the # of lines,
 	a new line is written of $USERS_PER_FILE-1.
 	*/
-	string fids_path = "/var/www/html/fids/fids.txt";
+	string fids_path = FILE_PATH+"/fids/fids.txt";
 	fstream fids;
 	fids.open(fids_path.c_str());
 	if(!fids){
@@ -309,8 +308,10 @@ void create_file(string file_type, string file_row_s, string file_column_s){
     int file_row=atoi(file_row_s.c_str());
     int file_column=atoi(file_column_s.c_str());
     stringstream file_name_ss;
-    string start_path="/var/www/html/";
-
+    string start_path=FILE_PATH+"/";
+	
+	file_name_ss << start_path;
+	
 	// check if any of the dirs needed dont exist, if so, make them
     vector<string> dirs;
     dirs.push_back("users");
@@ -384,7 +385,7 @@ User* create_new_user(User* user_obj){
     Returns a NULL pointer if failed somehow.
     */
     int current_line=0;
-    string fids_path = "/var/www/html/fids/fids.txt";  
+    string fids_path = FILE_PATH+"/fids/fids.txt";  
     unique_lock<mutex> fids_ul(mt_open(fids_path));		// OBTAIN THE FIDS LOCK
     int result=access(fids_path.c_str(), F_OK); 
     
@@ -1167,7 +1168,7 @@ void reply(int connfd, string msg){
 	string reply_s(reply_ss.str()); // make a string out of the stream
 	char* reply_c=new char[reply_s.size()]; // allocate space for a char* the size of our line
 	reply_s.copy(reply_c, reply_s.size() ); // fill that char* with the line's contents
-	write(connfd, reply_c, reply_s.size()); // write that char* with that size out to the network
+	//~ write(connfd, reply_c, reply_s.size()); // write that char* with that size out to the network
 	delete[] reply_c;
 }
 
@@ -1445,10 +1446,12 @@ void handle_php(int connfd, char* cmd, int cmd_size){
 			else { reply(connfd, "NO"); }
 		}
 	}
-	else { reply(connfd, received_str); } //invalid commands handled here
+	else { reply(connfd, received_ss.str() ); } //invalid commands handled here
 }
 
 void net_connection(char** argv){
+	
+	
 	/*
 	  From Stevens Unix Network Programming, vol 1.
 	  Minor modifications by John Sterling
@@ -1482,28 +1485,30 @@ void net_connection(char** argv){
 	if (listen(listenfd, LISTENQ) == -1) {
 		perror("Unable to listen");
 		exit(3);
+	} 
+	
+	// REPLY HERE HAS WRITE() COMMENTED OUT, WE DONT CARE ABOUT A REPLY TO THE PRIMARY
+
+
+	// 5. Block until someone connects.
+	//    We could provide a sockaddr if we wanted to know details of whom
+	//    we are talking to.
+	//    Last arg is where to put the size of the sockaddr if
+	//    we asked for one
+	fprintf(stderr, "Ready to connect.\n");
+	if ((connfd = accept(listenfd, (SA *) NULL, NULL)) == -1) {
+		perror("accept failed");
+		exit(4);
 	}
-
-
+	fprintf(stderr, "Connected\n");
+		
 	for ( ; ; ) {
-        // 5. Block until someone connects.
-        //    We could provide a sockaddr if we wanted to know details of whom
-        //    we are talking to.
-        //    Last arg is where to put the size of the sockaddr if
-        //    we asked for one
-		fprintf(stderr, "Ready to connect.\n");
-		if ((connfd = accept(listenfd, (SA *) NULL, NULL)) == -1) {
-			perror("accept failed");
-			exit(4);
-		}
-		fprintf(stderr, "Connected\n");
-		string capture;
-
    		// We had a connection.  Do whatever our task is.
 		char* cmd= new char[MSG_SIZE]; // dynamic array so each thread has its own heap cmd
-		
 		int read_well=read(connfd, cmd, MSG_SIZE);
 		cmd[MSG_SIZE-1]='\0'; // stringstream's life is easier
+
+		
 		cout << "Received cmd: " << cmd << endl;
 		if(read_well==MSG_SIZE){ // copy connfd by value, so each thread keeps its own connfd
 			thread client_request([connfd, cmd] { Functor handler(connfd, cmd, MSG_SIZE); });
@@ -1516,7 +1521,6 @@ void net_connection(char** argv){
 	// 		we have exception safety and all network connections are eventually closed, 
 	//	 	even on threads that crash unexpectedly.
 }
-
 
 
 
@@ -1547,7 +1551,7 @@ void function_tester(char cond='n'){
 		delete usey;
 		usey=NULL;
 	}
-	User* usey2=unflush_user("/var/www/html/users/u_1.txt", 4*MAX_ULINE_LEN);
+	User* usey2=unflush_user(FILE_PATH+"/users/u_1.txt", 4*MAX_ULINE_LEN);
 	// unflush does not error check, assumes youve already found the user and are just pulling out
 	
 	cerr << endl << endl << "The results of unflushing u_1.txt at line # 4 are below: " << endl  

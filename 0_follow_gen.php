@@ -5,7 +5,9 @@ $user_obj = new User;
 echo "test";
 
 if(!file_exists("fids/fids.txt")){
+	echo "test2";
 	for($usernum=0; $usernum<20; $usernum++){
+		echo "test3";
 		$user_obj->username="test_acc".$usernum;
 		$user_obj->password="test_psswd".$usernum;
 		$user_obj->full_name="Test's_First_name Test's_Last_name_+_".$usernum;

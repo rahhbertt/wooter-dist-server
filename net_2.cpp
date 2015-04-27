@@ -22,7 +22,7 @@
 #define	BUFFSIZE	8192
 #define SA struct sockaddr
 #define	LISTENQ		1024
-#define PORT_NUM    13101
+#define PORT_NUM    13102
 
 #define MOVED_CONNFD -10
 
@@ -82,7 +82,7 @@ class Functor{
 	}
 	~Functor(){ 
 		cout << "~Functor()" << endl; 
-		if(connfd!=MOVED_CONNFD) { close(connfd); }
+		//~ if(connfd!=MOVED_CONNFD) { close(connfd); }
 		delete clean_up;
 	}
 	
@@ -1449,14 +1449,12 @@ void handle_php(int connfd, char* cmd, int cmd_size){
 	else { reply(connfd, received_ss.str() ); } //invalid commands handled here
 }
 
-void net_connection(char** argv){
-	/*
+void listen_socket(int& listenfd, int& connfd, struct sockaddr_in& servaddr){  
+   	/*
 	  From Stevens Unix Network Programming, vol 1.
 	  Minor modifications by John Sterling
-	  Further minor modifications (in step 5) by Robert Ryszewski
+	  Further minor modifications by Robert Ryszewski
 	 */
-	int	listenfd, connfd;  // Unix file descriptors. its just an int
-    struct sockaddr_in	servaddr;  // Note C use of struct
     // 1. Create the socket
     if ((listenfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
     	perror("Unable to create a socket");
@@ -1476,31 +1474,38 @@ void net_connection(char** argv){
 		perror("Unable to bind port");
 		exit(2);
 	}
-
-
-    // 4. Tell the system that we are going to use this sockect for
+	
+	// 4. Tell the system that we are going to use this sockect for
     //    listening and request a queue length
 	if (listen(listenfd, LISTENQ) == -1) {
 		perror("Unable to listen");
 		exit(3);
 	} 
+}
+
+
+void net_connection(char** argv){
+	int	listenfd, connfd;  // Unix file descriptors. its just an int
+    struct sockaddr_in	servaddr;  // Note C use of struct
+	listen_socket(listenfd, connfd, servaddr);
+	
 	
 	// REPLY HERE HAS WRITE() COMMENTED OUT, WE DONT CARE ABOUT A REPLY TO THE PRIMARY
 
-	for ( ; ; ) {
-        // 5. Block until someone connects.
-        //    We could provide a sockaddr if we wanted to know details of whom
-        //    we are talking to.
-        //    Last arg is where to put the size of the sockaddr if
-        //    we asked for one
-		fprintf(stderr, "Ready to connect.\n");
-		if ((connfd = accept(listenfd, (SA *) NULL, NULL)) == -1) {
-			perror("accept failed");
-			exit(4);
-		}
-		fprintf(stderr, "Connected\n");
-		string capture;
 
+	// 5. Block until someone connects.
+	//    We could provide a sockaddr if we wanted to know details of whom
+	//    we are talking to.
+	//    Last arg is where to put the size of the sockaddr if
+	//    we asked for one
+	fprintf(stderr, "Ready to connect.\n");
+	if ((connfd = accept(listenfd, (SA *) NULL, NULL)) == -1) {
+		perror("accept failed");
+		exit(4);
+	}
+	fprintf(stderr, "Connected\n");
+		
+	for ( ; ; ) {
    		// We had a connection.  Do whatever our task is.
 		char* cmd= new char[MSG_SIZE]; // dynamic array so each thread has its own heap cmd
 		int read_well=read(connfd, cmd, MSG_SIZE);
