@@ -1,4 +1,3 @@
-
 #include <string>
 #include <fstream>
 #include <iostream>
@@ -18,21 +17,25 @@
 #include <sys/socket.h>  // socket, AF_INET, SOCK_STREAM,
                          // bind, listen, accept
 #include <netinet/in.h>  // servaddr, INADDR_ANY, htons
+#include <arpa/inet.h> // inet_addr
 
 #define	MAXLINE		4096
 #define	BUFFSIZE	8192
 #define SA struct sockaddr
 #define	LISTENQ		1024
-//~ #define PORT_NUM    13101
 #define PORT_NUM    13092
-#define PORT_PRI 	13092
+#define PORT_PRI 	13093
+#define PORT_NUM_RM 13101
 
 #define MOVED_CONNFD -10
 
 using namespace std;
 
+// GLOBAL VARIABLES
+bool am_primary=false; // global state
+
 // FORWARD DECLARATION of function needed for Functor class
-void handle_php(int connfd, char* cmd, int cmd_size, bool am_primary);
+void handle_php(int connfd, char* cmd, int cmd_size);
 
 // CLASSES DEFINED
 struct User{
@@ -67,7 +70,7 @@ class FileLock{
 };
 class Functor{
 	public:
-	Functor(int connfd, char* cmd, int size_of_msg, bool am_primary) : connfd(connfd), clean_up(cmd), am_primary(am_primary) { 
+	Functor(int connfd, char* cmd, int size_of_msg) : connfd(connfd), clean_up(cmd) { 
 		cout << "Functor()" << endl;
 		operator()(connfd, cmd, size_of_msg);
 	}
@@ -81,18 +84,17 @@ class Functor{
 	}
 	void operator()(int connfd, char* cmd, int size_of_msg){ 
 		cout << "Functor::operator()()" << endl;
-		handle_php(connfd, cmd, size_of_msg, am_primary);
+		handle_php(connfd, cmd, size_of_msg);
 	}
 	~Functor(){ 
 		cout << "~Functor()" << endl; 
-		//~ if(connfd!=MOVED_CONNFD) { close(connfd); }
+		if(am_primary && connfd!=MOVED_CONNFD) { close(connfd); }
 		delete clean_up;
 	}
 	
 	private:
 	int connfd;
 	char* clean_up;
-	bool am_primary;
 };
 
 // GLOBAL VARIABLES
@@ -268,7 +270,7 @@ void fids_decrease(int line_num){
 	the number of free spots/ids (fids) in that file. If $line_num is larger than the # of lines,
 	a new line is written of $USERS_PER_FILE-1.
 	*/
-	string fids_path = FILE_PATH+"/fids/fids.txt";
+	string fids_path = FILE_PATH +"/fids/fids.txt";
 	fstream fids;
 	fids.open(fids_path.c_str());
 	if(!fids){
@@ -313,7 +315,7 @@ void create_file(string file_type, string file_row_s, string file_column_s){
     int file_column=atoi(file_column_s.c_str());
     stringstream file_name_ss;
     string start_path=FILE_PATH+"/";
-	
+
 	file_name_ss << start_path;
 	
 	// check if any of the dirs needed dont exist, if so, make them
@@ -1319,7 +1321,7 @@ void reply_pack_str(int connfd, vector<int>* items, unsigned int object_size){
 	} // space delimiter already included between woots
 }
 
-void handle_php(int connfd, char* cmd, int cmd_size, bool am_primary){
+void handle_php(int connfd, char* cmd, int cmd_size){
 	/*
 	handle_php(connfd, cmd, cmd_size) takes in a connection file descriptor (connfd), a received command
 	* from the network (cmd), and the length of that command. It then tokenizes the message received
@@ -1358,12 +1360,10 @@ void handle_php(int connfd, char* cmd, int cmd_size, bool am_primary){
 		User* flush=user_unexplode(received_ss);
 		if(flush!=NULL){ 
 			
-			if(!am_primary){
-				User* rm_id_fix=read_user(flush->username);
-				flush->id=rm_id_fix->id;
-				delete rm_id_fix;
-				rm_id_fix=nullptr;
-			}
+			User* rm_id_fix=read_user(flush->username);
+			flush->id=rm_id_fix->id;
+			delete rm_id_fix;
+			rm_id_fix=nullptr;
 			
 			stringstream file_path_ss;
 			file_path_ss << FILE_PATH <<  "/users/u_" << flush->id/USERS_PER_FILE << ".txt";
@@ -1387,15 +1387,14 @@ void handle_php(int connfd, char* cmd, int cmd_size, bool am_primary){
 		User* other_user=user_unexplode(received_ss); // since by &, this should work
 		if( home_user!=NULL && other_user != NULL){ 
 			
-			if(!am_primary){
-				User* rm_id_fix=read_user(home_user->username);
-				home_user->id=rm_id_fix->id;
-				delete rm_id_fix;
-				rm_id_fix=read_user(other_user->username);
-				other_user->id=rm_id_fix->id;
-				delete rm_id_fix;
-				rm_id_fix=nullptr;
-			}
+			User* rm_id_fix=read_user(home_user->username);
+			home_user->id=rm_id_fix->id;
+			delete rm_id_fix;
+			rm_id_fix=read_user(other_user->username);
+			other_user->id=rm_id_fix->id;
+			delete rm_id_fix;
+			rm_id_fix=nullptr;
+			
 			
 			follow(home_user, other_user); 
 			reply(connfd, user_explode(home_user)); // need to update user stats on client end
@@ -1407,15 +1406,13 @@ void handle_php(int connfd, char* cmd, int cmd_size, bool am_primary){
 		User* other_user=user_unexplode(received_ss); // since by &, this should work
 		if( home_user!=NULL && other_user != NULL){ 
 			
-			if(!am_primary){
-				User* rm_id_fix=read_user(home_user->username);
-				home_user->id=rm_id_fix->id;
-				delete rm_id_fix;
-				rm_id_fix=read_user(other_user->username);
-				other_user->id=rm_id_fix->id;
-				delete rm_id_fix;
-				rm_id_fix=nullptr;
-			}
+			User* rm_id_fix=read_user(home_user->username);
+			home_user->id=rm_id_fix->id;
+			delete rm_id_fix;
+			rm_id_fix=read_user(other_user->username);
+			other_user->id=rm_id_fix->id;
+			delete rm_id_fix;
+			rm_id_fix=nullptr;
 			
 			unfollow(home_user, other_user); 
 			reply(connfd, user_explode(home_user)); // need to update user stats on client end
@@ -1441,12 +1438,10 @@ void handle_php(int connfd, char* cmd, int cmd_size, bool am_primary){
 		string timestamp=unexplode_ts(received_ss);
 		if(home_user!=NULL){
 			
-			if(!am_primary){
-				User* rm_id_fix=read_user(home_user->username);
-				home_user->id=rm_id_fix->id;
-				delete rm_id_fix;
-				rm_id_fix=nullptr;
-			}
+			User* rm_id_fix=read_user(home_user->username);
+			home_user->id=rm_id_fix->id;
+			delete rm_id_fix;
+			rm_id_fix=nullptr;
 			
 			write_woot(home_user, woot, timestamp);
 			reply(connfd, user_explode(home_user) ); // have to increment num_woots
@@ -1488,7 +1483,7 @@ void handle_php(int connfd, char* cmd, int cmd_size, bool am_primary){
 	else { reply(connfd, received_ss.str() ); } //invalid commands handled here
 }
 
-void listen_socket(int& listenfd, int& connfd, struct sockaddr_in& servaddr, int port_arg){  
+void listen_socket(int& listenfd, int& connfd, struct sockaddr_in& servaddr, int port){  
    	/*
 	  From Stevens Unix Network Programming, vol 1.
 	  Minor modifications by John Sterling
@@ -1506,10 +1501,10 @@ void listen_socket(int& listenfd, int& connfd, struct sockaddr_in& servaddr, int
     servaddr.sin_family      = AF_INET; // Specify the family
     // use any network card present
     servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
-	servaddr.sin_port        = htons(port_arg);	// wooter file server
+	servaddr.sin_port        = htons(port);	// wooter file server
 
     // 3. "Bind" that address object to our listening file descriptor
-	while (bind(listenfd, (SA *) &servaddr, sizeof(servaddr)) == -1) {
+	while(bind(listenfd, (SA *) &servaddr, sizeof(servaddr)) == -1) {
 		//~ perror("Unable to bind port");
 		//~ exit(2);
 	}
@@ -1522,30 +1517,62 @@ void listen_socket(int& listenfd, int& connfd, struct sockaddr_in& servaddr, int
 	} 
 }
 
+void rm_socket(int& rm_connfd, struct sockaddr_in& rm_addr){
+	/*
+	  From Stevens Unix Network Programming, vol 1.
+	  Minor modifications by John Sterling
+	  Further minor modifications by Robert Ryszewski
+	*/
+	 
+    // 1. Create the socket
+    if ((rm_connfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+    	perror("Unable to create a socket");
+    	exit(1);
+    }
+    // 2. Set up the sockaddr_in
+    // zero it.  
+    // bzero(&servaddr, sizeof(servaddr)); // Note bzero is "deprecated".  Sigh.
+    memset(&rm_addr, 0, sizeof(rm_addr));
+    rm_addr.sin_family      = AF_INET; // Specify the family
+    // use any network card present
+    rm_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+	rm_addr.sin_port        = htons(PORT_NUM_RM);	// wooter file server
+
+	if (connect(rm_connfd , (struct sockaddr *)&rm_addr , sizeof(rm_addr)) < 0 ) {
+        perror("connect failed. Error");
+    }     
+    
+}
+
 void net_connection(char** argv){
 	int	listenfd, connfd;  // Unix file descriptors. its just an int
     struct sockaddr_in	servaddr;  // Note C use of struct
 	listen_socket(listenfd, connfd, servaddr, PORT_NUM);
 	
-	// REPLY HERE HAS WRITE() COMMENTED OUT, WE DONT CARE ABOUT A REPLY TO THE PRIMARY
-	// 5. Block until someone connects.
-	//    We could provide a sockaddr if we wanted to know details of whom
-	//    we are talking to.
-	//    Last arg is where to put the size of the sockaddr if
-	//    we asked for one
-	fprintf(stderr, "Ready to connect.\n");
+	int rm_connfd;
+	struct sockaddr_in rm_addr;
+	//~ rm_socket(rm_connfd, rm_addr);
+	
+	int bytes_sent=0;
+	
+	//~ char RM_msg[MSG_SIZE]="just a friendly test message meaning no harm";
+	//~ bytes_sent=write(rm_connfd, RM_msg, MSG_SIZE);
+	//~ bytes_sent=write(rm_connfd, RM_msg, MSG_SIZE);
+	fprintf(stderr, "Ready to connect!\n");
 	if ((connfd = accept(listenfd, (SA *) NULL, NULL)) == -1) {
 		perror("accept failed");
 		exit(4);
 	}
 	fprintf(stderr, "Connected\n");
 	
-	bool am_primary=false;
-	
+	am_primary=false;
+
 	for ( ; ; ) {
+        // 5. Block until someone connects.
+        //    We could provide a sockaddr if we wanted to know details of whom we are talking to.
+        //    Last arg is where to put the size of the sockaddr if we asked for one
 		if(am_primary){
-			//~ close(connfd); // threads need connfd to not be closed
-			fprintf(stderr, "Ready to connect.\n");
+			fprintf(stderr, "Ready to connect!\n");
 			if ((connfd = accept(listenfd, (SA *) NULL, NULL)) == -1) {
 				perror("accept failed");
 				exit(4);
@@ -1558,23 +1585,16 @@ void net_connection(char** argv){
 		char* cmd= new char[MSG_SIZE]; // dynamic array so each thread has its own heap cmd
 		int read_well=read(connfd, cmd, MSG_SIZE);
 		cmd[MSG_SIZE-1]='\0'; // stringstream's life is easier
-
-		// had to modify handle_php and functor constructor/operator()() to take bool am_primary
-		// otherwise we get race conditions
-		// get rid of this?
-
-
-// test
-
-
+		
+		// before processing the command yourself, tell the RM to do it in parallel
+		//~ bytes_sent=write(rm_connfd, cmd, MSG_SIZE);
+		cout << "Bytes sent:" << bytes_sent << endl;		
 		cout << "Received cmd: " << cmd << endl;
 		if(read_well==MSG_SIZE){ // copy connfd by value, so each thread keeps its own connfd
-			//~ am_primary=false;
-			thread client_request([connfd, cmd, am_primary] { Functor handler(connfd, cmd, MSG_SIZE, am_primary); });
-			//~ am_primary=true;
+			thread client_request([connfd, cmd] { Functor handler(connfd, cmd, MSG_SIZE); });
 			client_request.detach(); // so if main exits we dont crash everything
-		} // else fails silently
-		else if(read_well<=0){ // connection dropped, server is down
+		} // else fails silently	
+		else if(read_well==0){ // connection dropped, server is down
 			close(connfd);
 			close(listenfd);
 			listen_socket(listenfd, connfd, servaddr, PORT_PRI);
@@ -1583,8 +1603,9 @@ void net_connection(char** argv){
 		else{
 			cout << "Read only: " << read_well << endl;
 		}
+
+		//~ close(rm_connfd); // only need to tell RM the command, and dont care about any replies
 	}
-	
 	// 6. Close the connection with the current client and go back for another.
 	// 		This step has been moved to the destructor of the Functor class so that
 	// 		we have exception safety and all network connections are eventually closed, 

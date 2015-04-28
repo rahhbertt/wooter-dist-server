@@ -23,8 +23,8 @@
 #define	BUFFSIZE	8192
 #define SA struct sockaddr
 #define	LISTENQ		1024
-#define PORT_NUM    13092
-#define PORT_NUM_RM 13101
+#define PORT_NUM    13093
+#define PORT_NUM_RM 13092
 
 #define MOVED_CONNFD -10
 
@@ -1551,9 +1551,11 @@ void net_connection(char** argv){
 	
 	int bytes_sent=0;
 	
-	//~ char RM_msg[MSG_SIZE]="just a friendly test message meaning no harm";
-	//~ bytes_sent=write(rm_connfd, RM_msg, MSG_SIZE);
-	//~ bytes_sent=write(rm_connfd, RM_msg, MSG_SIZE);
+	string msg="just a friendly test message meaning no harm";
+	msg.resize(MSG_SIZE, 'z');
+	
+	//~ bytes_sent=write(rm_connfd, msg.c_str(), strlen(msg.c_str()));
+	//~ bytes_sent=write(rm_connfd, msg.c_str(), strlen(msg.c_str()));
 
 	for ( ; ; ) {
         // 5. Block until someone connects.
@@ -1572,9 +1574,11 @@ void net_connection(char** argv){
 		cmd[MSG_SIZE-1]='\0'; // stringstream's life is easier
 		
 		// before processing the command yourself, tell the RM to do it in parallel
+		
 		bytes_sent=write(rm_connfd, cmd, MSG_SIZE);
 		cout << "Bytes sent:" << bytes_sent << endl;		
 		cout << "Received cmd: " << cmd << endl;
+		
 		if(read_well==MSG_SIZE){ // copy connfd by value, so each thread keeps its own connfd
 			thread client_request([connfd, cmd] { Functor handler(connfd, cmd, MSG_SIZE); });
 			client_request.detach(); // so if main exits we dont crash everything
