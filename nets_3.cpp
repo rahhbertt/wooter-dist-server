@@ -1517,7 +1517,7 @@ void listen_socket(int& listenfd, int& connfd, struct sockaddr_in& servaddr, int
 	} 
 }
 
-void rm_socket(int& rm_connfd, struct sockaddr_in& rm_addr){
+int rm_socket(int& rm_connfd, struct sockaddr_in& rm_addr, int port){
 	/*
 	  From Stevens Unix Network Programming, vol 1.
 	  Minor modifications by John Sterling
@@ -1536,22 +1536,47 @@ void rm_socket(int& rm_connfd, struct sockaddr_in& rm_addr){
     rm_addr.sin_family      = AF_INET; // Specify the family
     // use any network card present
     rm_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-	rm_addr.sin_port        = htons(PORT_NUM_RM);	// wooter file server
+	rm_addr.sin_port        = htons(port);	// wooter file server
 
-	if (connect(rm_connfd , (struct sockaddr *)&rm_addr , sizeof(rm_addr)) < 0 ) {
+	int success=connect(rm_connfd , (struct sockaddr *)&rm_addr , sizeof(rm_addr));
+	if ( success < 0 ) {
         perror("connect failed. Error");
     }     
+    return success;
     
 }
 
 void net_connection(char** argv){
 	int	listenfd, connfd;  // Unix file descriptors. its just an int
     struct sockaddr_in	servaddr;  // Note C use of struct
-	listen_socket(listenfd, connfd, servaddr, PORT_NUM);
+
+	//~ listen_socket(listenfd, connfd, servaddr, PORT_NUM);
+	vector<int> rm_connfds;
+	int success=-1;
+	int i=0;
 	
-	int rm_connfd;
-	struct sockaddr_in rm_addr;
-	//~ rm_socket(rm_connfd, rm_addr);
+	// during the ACCEPT loop, have handle_php args also take a
+	// SET UP RM command, that takes the port # of the RM, so can communicate
+	
+	
+	// connect to all RMs at start
+	while( true ){
+		int rm_connfd;
+		struct sockaddr_in rm_addr;
+		cout << "port #: " << PORT_NUM+i << endl;
+		success=rm_socket(rm_connfd, rm_addr, PORT_NUM+i);
+		if(success >= 0) { 
+			cout << "port success" << endl;
+			rm_connfds.push_back(rm_connfd); 
+			success=-1;
+		}
+		i++;
+		if(i>10){ break; }
+	}
+	
+	
+	char pause=getchar();
+	
 	
 	int bytes_sent=0;
 	

@@ -1557,6 +1557,7 @@ void net_connection(char** argv){
 	//~ bytes_sent=write(rm_connfd, msg.c_str(), strlen(msg.c_str()));
 	//~ bytes_sent=write(rm_connfd, msg.c_str(), strlen(msg.c_str()));
 
+
 	for ( ; ; ) {
         // 5. Block until someone connects.
         //    We could provide a sockaddr if we wanted to know details of whom we are talking to.
