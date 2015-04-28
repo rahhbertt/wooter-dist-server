@@ -23,8 +23,8 @@
 #define	BUFFSIZE	8192
 #define SA struct sockaddr
 #define	LISTENQ		1024
-#define PORT_NUM    13094
-#define PORT_NUM_RM 13102
+#define PORT_NUM    13092
+#define PORT_NUM_RM 13101
 
 #define MOVED_CONNFD -10
 
