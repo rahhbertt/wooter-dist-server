@@ -23,20 +23,16 @@
 #define	BUFFSIZE	8192
 #define SA struct sockaddr
 #define	LISTENQ		1024
-<<<<<<< HEAD
-<<<<<<< HEAD
-#define PORT_NUM    13094
-=======
-#define PORT_NUM    13093
->>>>>>> dde9c93c4ea768c829d5034fadef3d8dcf978d36
-=======
-#define PORT_NUM    13093
->>>>>>> dde9c93c4ea768c829d5034fadef3d8dcf978d36
-#define PORT_NUM_RM 13092
+#define PORT_NUM    13096
+#define PORT_PRI 	13093
+#define PORT_NUM_RM 13101
 
 #define MOVED_CONNFD -10
 
 using namespace std;
+
+// GLOBAL VARIABLES
+bool am_primary=false; // global state
 
 // FORWARD DECLARATION of function needed for Functor class
 void handle_php(int connfd, char* cmd, int cmd_size);
@@ -92,7 +88,7 @@ class Functor{
 	}
 	~Functor(){ 
 		cout << "~Functor()" << endl; 
-		if(connfd!=MOVED_CONNFD) { close(connfd); }
+		if(am_primary && connfd!=MOVED_CONNFD) { close(connfd); }
 		delete clean_up;
 	}
 	
@@ -116,7 +112,7 @@ const int  USERS_PER_FILE=10, FID_HDR_LEN=5, FLRS_PER_LINE=10, MAX_FLR_LINE_LEN=
 const char MY_DELIMITER=' '; // while this is a global, the code will only function if this is a whitespace character
 const int  WOOTS_PER_LINE=10, MAX_WOOT_LEN=100, MAX_WOOT_TMSTP=22, MAX_WOOT_LINE=(10)*(100+1+22+1);
 const int  MAX_WOOT_LINE_LEN=WOOTS_PER_LINE*(MAX_WOOT_LEN+1+MAX_WOOT_TMSTP+1);
-const string FILE_PATH="/var/www/html";
+const string FILE_PATH="/var/www/html/rm_1";
 const int MSG_SIZE=560;
 	
 	
@@ -1487,7 +1483,7 @@ void handle_php(int connfd, char* cmd, int cmd_size){
 	else { reply(connfd, received_ss.str() ); } //invalid commands handled here
 }
 
-void listen_socket(int& listenfd, int& connfd, struct sockaddr_in& servaddr){  
+void listen_socket(int& listenfd, int& connfd, struct sockaddr_in& servaddr, int port){  
    	/*
 	  From Stevens Unix Network Programming, vol 1.
 	  Minor modifications by John Sterling
@@ -1498,7 +1494,6 @@ void listen_socket(int& listenfd, int& connfd, struct sockaddr_in& servaddr){
     	perror("Unable to create a socket");
     	exit(1);
     }
-    setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, NULL, 0);
     // 2. Set up the sockaddr_in
     // zero it.  
     // bzero(&servaddr, sizeof(servaddr)); // Note bzero is "deprecated".  Sigh.
@@ -1506,12 +1501,12 @@ void listen_socket(int& listenfd, int& connfd, struct sockaddr_in& servaddr){
     servaddr.sin_family      = AF_INET; // Specify the family
     // use any network card present
     servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
-	servaddr.sin_port        = htons(PORT_NUM);	// wooter file server
+	servaddr.sin_port        = htons(port);	// wooter file server
 
     // 3. "Bind" that address object to our listening file descriptor
-	if (bind(listenfd, (SA *) &servaddr, sizeof(servaddr)) == -1) {
-		perror("Unable to bind port");
-		exit(2);
+	while(bind(listenfd, (SA *) &servaddr, sizeof(servaddr)) == -1) {
+		//~ perror("Unable to bind port");
+		//~ exit(2);
 	}
 	
 	// 4. Tell the system that we are going to use this sockect for
@@ -1522,7 +1517,7 @@ void listen_socket(int& listenfd, int& connfd, struct sockaddr_in& servaddr){
 	} 
 }
 
-void rm_socket(int& rm_connfd, struct sockaddr_in& rm_addr){
+int rm_socket(int& rm_connfd, struct sockaddr_in& rm_addr, int port){
 	/*
 	  From Stevens Unix Network Programming, vol 1.
 	  Minor modifications by John Sterling
@@ -1541,77 +1536,99 @@ void rm_socket(int& rm_connfd, struct sockaddr_in& rm_addr){
     rm_addr.sin_family      = AF_INET; // Specify the family
     // use any network card present
     rm_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-	rm_addr.sin_port        = htons(PORT_NUM_RM);	// wooter file server
+	rm_addr.sin_port        = htons(port);	// wooter file server
 
-	if (connect(rm_connfd , (struct sockaddr *)&rm_addr , sizeof(rm_addr)) < 0 ) {
+	int success=connect(rm_connfd , (struct sockaddr *)&rm_addr , sizeof(rm_addr));
+	if ( success < 0 ) {
         perror("connect failed. Error");
     }     
+    return success;
     
 }
 
 void net_connection(char** argv){
 	int	listenfd, connfd;  // Unix file descriptors. its just an int
     struct sockaddr_in	servaddr;  // Note C use of struct
-	listen_socket(listenfd, connfd, servaddr);
+
+	//~ listen_socket(listenfd, connfd, servaddr, PORT_NUM);
+	vector<int> rm_connfds;
+	int success=-1;
+	int i=0;
 	
-	int rm_connfd;
-	struct sockaddr_in rm_addr;
-	rm_socket(rm_connfd, rm_addr);
+	// during the ACCEPT loop, have handle_php args also take a
+	// SET UP RM command, that takes the port # of the RM, so can communicate
+	
+	
+	// connect to all RMs at start
+	while( true ){
+		int rm_connfd;
+		struct sockaddr_in rm_addr;
+		cout << "port #: " << PORT_NUM+i << endl;
+		success=rm_socket(rm_connfd, rm_addr, PORT_NUM+i);
+		if(success >= 0) { 
+			cout << "port success" << endl;
+			rm_connfds.push_back(rm_connfd); 
+			success=-1;
+		}
+		i++;
+		if(i>10){ break; }
+	}
+	
+	
+	char pause=getchar();
+	
 	
 	int bytes_sent=0;
 	
-	string msg="just a friendly test message meaning no harm";
-	msg.resize(MSG_SIZE, 'z');
+	//~ char RM_msg[MSG_SIZE]="just a friendly test message meaning no harm";
+	//~ bytes_sent=write(rm_connfd, RM_msg, MSG_SIZE);
+	//~ bytes_sent=write(rm_connfd, RM_msg, MSG_SIZE);
+	fprintf(stderr, "Ready to connect!\n");
+	if ((connfd = accept(listenfd, (SA *) NULL, NULL)) == -1) {
+		perror("accept failed");
+		exit(4);
+	}
+	fprintf(stderr, "Connected\n");
 	
-	//~ bytes_sent=write(rm_connfd, msg.c_str(), strlen(msg.c_str()));
-	//~ bytes_sent=write(rm_connfd, msg.c_str(), strlen(msg.c_str()));
-<<<<<<< HEAD
-<<<<<<< HEAD
-		string rm_cmd="new_rm "+to_string(PORT_NUM);
-		rm_cmd.resize(MSG_SIZE);
-		bytes_sent=write(rm_connfd, rm_cmd.c_str(), MSG_SIZE);
-=======
-
->>>>>>> dde9c93c4ea768c829d5034fadef3d8dcf978d36
-=======
-
->>>>>>> dde9c93c4ea768c829d5034fadef3d8dcf978d36
+	am_primary=false;
 
 	for ( ; ; ) {
         // 5. Block until someone connects.
         //    We could provide a sockaddr if we wanted to know details of whom we are talking to.
         //    Last arg is where to put the size of the sockaddr if we asked for one
-		fprintf(stderr, "Ready to connect.\n");
-		if ((connfd = accept(listenfd, (SA *) NULL, NULL)) == -1) {
-			perror("accept failed");
-			exit(4);
+		if(am_primary){
+			fprintf(stderr, "Ready to connect!\n");
+			if ((connfd = accept(listenfd, (SA *) NULL, NULL)) == -1) {
+				perror("accept failed");
+				exit(4);
+			}
+			fprintf(stderr, "Connected\n");
 		}
-		fprintf(stderr, "Connected\n");
-
+		//~ am_primary=true;
+		
    		// We had a connection.  Do whatever our task is.
 		char* cmd= new char[MSG_SIZE]; // dynamic array so each thread has its own heap cmd
 		int read_well=read(connfd, cmd, MSG_SIZE);
 		cmd[MSG_SIZE-1]='\0'; // stringstream's life is easier
 		
-		//~ char pause=getchar();
 		// before processing the command yourself, tell the RM to do it in parallel
-<<<<<<< HEAD
-<<<<<<< HEAD
-
-=======
-		
->>>>>>> dde9c93c4ea768c829d5034fadef3d8dcf978d36
-=======
-		
->>>>>>> dde9c93c4ea768c829d5034fadef3d8dcf978d36
-		bytes_sent=write(rm_connfd, cmd, MSG_SIZE);
+		//~ bytes_sent=write(rm_connfd, cmd, MSG_SIZE);
 		cout << "Bytes sent:" << bytes_sent << endl;		
 		cout << "Received cmd: " << cmd << endl;
-		
 		if(read_well==MSG_SIZE){ // copy connfd by value, so each thread keeps its own connfd
 			thread client_request([connfd, cmd] { Functor handler(connfd, cmd, MSG_SIZE); });
 			client_request.detach(); // so if main exits we dont crash everything
 		} // else fails silently	
+		else if(read_well==0){ // connection dropped, server is down
+			close(connfd);
+			close(listenfd);
+			listen_socket(listenfd, connfd, servaddr, PORT_PRI);
+			am_primary=true;
+		}
+		else{
+			cout << "Read only: " << read_well << endl;
+		}
+
 		//~ close(rm_connfd); // only need to tell RM the command, and dont care about any replies
 	}
 	// 6. Close the connection with the current client and go back for another.

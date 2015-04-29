@@ -100,7 +100,16 @@ class Functor{
 // GLOBAL VARIABLES
 mutex lock_distributor; // used by mt_open to handle lock distribution
 vector<FileLock> file_locks;
+<<<<<<< HEAD
+<<<<<<< HEAD
+vector<int> rm_connfds;
+	
+=======
 
+>>>>>>> dde9c93c4ea768c829d5034fadef3d8dcf978d36
+=======
+
+>>>>>>> dde9c93c4ea768c829d5034fadef3d8dcf978d36
 // GLOBAL CONSTANTS
 const int  MIN_USER_LEN=8, MAX_USER_LEN=24+1, MIN_PWD_LEN=10, MAX_PWD_LEN=32+1, MAX_ID_LEN=10+1; // at most 10 digits for the # of users
 const int  MAX_FNM_LEN=25, MAX_LNM_LEN=25+1, MAX_EML_LEN=100+1, MAX_NUM_WOOTS=10; // at most 10 digits for the # of woots per user
@@ -1321,6 +1330,14 @@ void reply_pack_str(int connfd, vector<int>* items, unsigned int object_size){
 	} // space delimiter already included between woots
 }
 
+<<<<<<< HEAD
+<<<<<<< HEAD
+int rm_socket(int& rm_connfd, struct sockaddr_in& rm_addr, int port);
+
+=======
+>>>>>>> dde9c93c4ea768c829d5034fadef3d8dcf978d36
+=======
+>>>>>>> dde9c93c4ea768c829d5034fadef3d8dcf978d36
 void handle_php(int connfd, char* cmd, int cmd_size){
 	/*
 	handle_php(connfd, cmd, cmd_size) takes in a connection file descriptor (connfd), a received command
@@ -1480,6 +1497,27 @@ void handle_php(int connfd, char* cmd, int cmd_size){
 			else { reply(connfd, "NO"); }
 		}
 	}
+<<<<<<< HEAD
+<<<<<<< HEAD
+	else if(received_str=="new_rm"){
+		int rm_port=-1;
+		received_ss >> rm_port;
+		
+		int rm_connfd;
+		struct sockaddr_in rm_addr;
+		cout << "port #: " << rm_port << endl;
+		int success=rm_socket(rm_connfd, rm_addr, rm_port);
+		if(success >= 0) { 
+			cout << "port success" << endl;
+			rm_connfds.push_back(rm_connfd); 
+			success=-1;
+		}
+		else { close(rm_connfd); }
+	}
+=======
+>>>>>>> dde9c93c4ea768c829d5034fadef3d8dcf978d36
+=======
+>>>>>>> dde9c93c4ea768c829d5034fadef3d8dcf978d36
 	else { reply(connfd, received_ss.str() ); } //invalid commands handled here
 }
 
@@ -1550,14 +1588,34 @@ void net_connection(char** argv){
 	int	listenfd, connfd;  // Unix file descriptors. its just an int
     struct sockaddr_in	servaddr;  // Note C use of struct
 
+<<<<<<< HEAD
+<<<<<<< HEAD
+	listen_socket(listenfd, connfd, servaddr, PORT_NUM);
+
+	int success=-1;
+	int i=1;
+=======
+=======
+>>>>>>> dde9c93c4ea768c829d5034fadef3d8dcf978d36
 	//~ listen_socket(listenfd, connfd, servaddr, PORT_NUM);
 	vector<int> rm_connfds;
 	int success=-1;
 	int i=0;
+<<<<<<< HEAD
+>>>>>>> dde9c93c4ea768c829d5034fadef3d8dcf978d36
+=======
+>>>>>>> dde9c93c4ea768c829d5034fadef3d8dcf978d36
 	
 	// during the ACCEPT loop, have handle_php args also take a
 	// SET UP RM command, that takes the port # of the RM, so can communicate
 	
+<<<<<<< HEAD
+<<<<<<< HEAD
+	// close connection after
+=======
+>>>>>>> dde9c93c4ea768c829d5034fadef3d8dcf978d36
+=======
+>>>>>>> dde9c93c4ea768c829d5034fadef3d8dcf978d36
 	
 	// connect to all RMs at start
 	while( true ){
@@ -1570,6 +1628,13 @@ void net_connection(char** argv){
 			rm_connfds.push_back(rm_connfd); 
 			success=-1;
 		}
+<<<<<<< HEAD
+<<<<<<< HEAD
+		else { close(rm_connfd); }
+=======
+>>>>>>> dde9c93c4ea768c829d5034fadef3d8dcf978d36
+=======
+>>>>>>> dde9c93c4ea768c829d5034fadef3d8dcf978d36
 		i++;
 		if(i>10){ break; }
 	}
@@ -1578,6 +1643,29 @@ void net_connection(char** argv){
 	char pause=getchar();
 	
 	
+<<<<<<< HEAD
+<<<<<<< HEAD
+	
+	
+	
+	// handle php now has an NEW_RM command
+	// 0) merge the two .ccps so can load ONE file and get everything running
+	// thats the biggest hurdle; handle rm_1 to path and all
+	// thats pretty much everything
+	// 1) test if, while getting many client requests, can detect and act on RM request
+	// 2) test primary server crashing and what happens then with 1 RM, then 2, etc
+	
+	
+	
+	
+	
+	
+	
+	
+=======
+>>>>>>> dde9c93c4ea768c829d5034fadef3d8dcf978d36
+=======
+>>>>>>> dde9c93c4ea768c829d5034fadef3d8dcf978d36
 	int bytes_sent=0;
 	
 	//~ char RM_msg[MSG_SIZE]="just a friendly test message meaning no harm";
