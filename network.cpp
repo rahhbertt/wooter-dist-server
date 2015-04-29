@@ -23,15 +23,7 @@
 #define	BUFFSIZE	8192
 #define SA struct sockaddr
 #define	LISTENQ		1024
-<<<<<<< HEAD
-<<<<<<< HEAD
-#define PORT_NUM    13094
-=======
 #define PORT_NUM    13093
->>>>>>> dde9c93c4ea768c829d5034fadef3d8dcf978d36
-=======
-#define PORT_NUM    13093
->>>>>>> dde9c93c4ea768c829d5034fadef3d8dcf978d36
 #define PORT_NUM_RM 13092
 
 #define MOVED_CONNFD -10
@@ -1565,17 +1557,11 @@ void net_connection(char** argv){
 	
 	//~ bytes_sent=write(rm_connfd, msg.c_str(), strlen(msg.c_str()));
 	//~ bytes_sent=write(rm_connfd, msg.c_str(), strlen(msg.c_str()));
-<<<<<<< HEAD
-<<<<<<< HEAD
 		string rm_cmd="new_rm "+to_string(PORT_NUM);
 		rm_cmd.resize(MSG_SIZE);
 		bytes_sent=write(rm_connfd, rm_cmd.c_str(), MSG_SIZE);
-=======
 
->>>>>>> dde9c93c4ea768c829d5034fadef3d8dcf978d36
-=======
 
->>>>>>> dde9c93c4ea768c829d5034fadef3d8dcf978d36
 
 	for ( ; ; ) {
         // 5. Block until someone connects.
@@ -1595,15 +1581,9 @@ void net_connection(char** argv){
 		
 		//~ char pause=getchar();
 		// before processing the command yourself, tell the RM to do it in parallel
-<<<<<<< HEAD
-<<<<<<< HEAD
 
-=======
 		
->>>>>>> dde9c93c4ea768c829d5034fadef3d8dcf978d36
-=======
 		
->>>>>>> dde9c93c4ea768c829d5034fadef3d8dcf978d36
 		bytes_sent=write(rm_connfd, cmd, MSG_SIZE);
 		cout << "Bytes sent:" << bytes_sent << endl;		
 		cout << "Received cmd: " << cmd << endl;
