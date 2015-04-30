@@ -1610,13 +1610,7 @@ void net_connection(char** argv){
 		connect_rms(); // if just an RM, you only connect when sense a crash
 	} 
 	else { // connect to primary and wait for commands
-		// PUT THIS ALL IN ONE EASY FUNCTION, OR SEVERAL MODULAR FUNCTIONS
-		
 		// handle_file_path()
-		// notify_prim()
-		// then the few lines that make up connect_prim()
-		
-		//~ int success=rm_socket(prim_connfd, PORT_PRIM); 
 		FILE_PATH=FILE_PATH+"/rm_"+to_string(my_port-PORT_PRIM);
 		int result=access(FILE_PATH.c_str(), F_OK);
 		if( (result < 0) && (errno == ENOENT) ) { // if directory does not exist
@@ -1625,26 +1619,24 @@ void net_connection(char** argv){
 			cerr << "Have created dir! " << endl;
 		} // else the directory already exists
 		
+		// notify_primary()
 		rm_socket(prim_connfd, PORT_PRIM); // connect as to other server to tell it "I AM A NEW RM, ADD ME"
 		// WHAT IF THIS FAILS
 		string notify_prim="new_rm "+to_string(my_port);
 		notify_prim.resize(MSG_SIZE);
 		int bytes_sent=write(prim_connfd, notify_prim.c_str(), MSG_SIZE);		
 		close(prim_connfd); // free up that port
-		listen_socket(listenfd, connfd, my_port); // now create a listen port and wait for the PRIM to connect to you
 		
+		// wait_for_primary()
+		listen_socket(listenfd, connfd, my_port); // now create a listen port and wait for the PRIM to connect to you
 		fprintf(stderr, "Ready to connect!\n");
 		if ((connfd = accept(listenfd, (SA *) NULL, NULL)) == -1) {
 			perror("accept failed");
 			exit(4);
 		}
-		fprintf(stderr, "Connected\n");
-	
+		fprintf(stderr, "Connected\n");	
 		// if not successful ...?
 	}	
-	// SET SOCK OPT
-
-	// bytes_sent=write_rms(...), basically a short for loop over global RM vector
 	
 	// if read_well==0, primary is down, connection is down
 	// assumes if one RM detects this, they'll all detect this and go into this voting process
@@ -1663,19 +1655,10 @@ void net_connection(char** argv){
 		// can't include random #, since they all have to talk to each other anyway
 		// ideally instead of n(n-1) messages being passed to vote, people pass the vector of what they have, and they save messages
 		
-	//~ int bytes_sent=0;	
-	//~ string msg="just a friendly test message meaning no harm";
-	//~ msg.resize(MSG_SIZE, 'z');
-	//~ bytes_sent=write(rm_connfd, msg.c_str(), strlen(msg.c_str()));
-	//~ bytes_sent=write(rm_connfd, msg.c_str(), strlen(msg.c_str()));
-	//~ string rm_cmd="new_rm "+to_string(PORT_NUM);
-	//~ rm_cmd.resize(MSG_SIZE);
-	//~ bytes_sent=write(rm_connfd, rm_cmd.c_str(), MSG_SIZE);
 	for ( ; ; ) {
         // 5. Block until someone connects.
         //    We could provide a sockaddr if we wanted to know details of whom we are talking to.
-        //    Last arg is where to put the size of the sockaddr if we asked for one
-        
+        //    Last arg is where to put the size of the sockaddr if we asked for one        
         if(am_primary){	// only ACCEPT more connections if am_primary
 			fprintf(stderr, "Ready to connect!\n");
 			if ((connfd = accept(listenfd, (SA *) NULL, NULL)) == -1) {
@@ -1689,9 +1672,6 @@ void net_connection(char** argv){
 		char* cmd= new char[MSG_SIZE]; // dynamic array so each thread has its own heap cmd
 		int read_well=read(connfd, cmd, MSG_SIZE);
 		cmd[MSG_SIZE-1]='\0'; // stringstream's life is easier
-		//~ char pause=getchar();
-		// before processing the command yourself, tell the RM to do it in parallel
-		//~ cout << "Bytes sent:" << bytes_sent << endl;		
 		cout << "Received cmd: " << cmd << endl;
 		
 		// ~Functor() only closes connfd if you ARE the primary, and that's a client connfd
@@ -1709,7 +1689,7 @@ void net_connection(char** argv){
 					cout << "SUCCESS: Adding rm #" << port_str << endl;
 					rm_connfds[stoi(port_str)-PORT_PRIM]=connfd; 
 				}
-				else { close(rm_connfd); }			
+				else { close(rm_connfd); }	// report error or handle error?
 			} // if new_rm, do NOT want to close that connfd like every client request does
 			else{
 				// only write cmds to RM that are not "add new RM". RM does not care about all the other RMs
@@ -1718,6 +1698,18 @@ void net_connection(char** argv){
 				client_request.detach(); // so if main exits we dont crash everything
 			}
 		} // else fails silently	
+		else if(!am_primary && read_well==0) { // primary's connect_rms receives empty "" messages
+			
+			
+			
+			// this assumes only one RM in entire model
+			
+			// also conceptually only become primary if you are no talready
+			close(connfd);
+			close(listenfd);
+			listen_socket(listenfd, connfd, PORT_PRIM);
+			am_primary=true;		
+		}
 		//~ close(rm_connfd); // only need to tell RM the command, and dont care about any replies
 	}
 	// 6. Close the connection with the current client and go back for another.
