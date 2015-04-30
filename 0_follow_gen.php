@@ -2,7 +2,7 @@
 include "user_mgmt.php";
 $user_obj = new User;
 // make 20 users, so that at least 20 exist if none so far
-$FILE_PATH="/var/www/html/rm_1";
+$FILE_PATH="/var/www/html/";
 
 if(!file_exists( $FILE_PATH."fids/fids.txt" )){
 	for($usernum=0; $usernum<20; $usernum++){

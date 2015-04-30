@@ -23,7 +23,9 @@
 #define	BUFFSIZE	8192
 #define SA struct sockaddr
 #define	LISTENQ		1024
-#define PORT_NUM    13093
+#define PORT_PRIM    13090
+#define NUM_BKUPS	10
+
 #define PORT_NUM_RM 13092
 
 #define MOVED_CONNFD -10
@@ -32,6 +34,9 @@ using namespace std;
 
 // FORWARD DECLARATION of function needed for Functor class
 void handle_php(int connfd, char* cmd, int cmd_size);
+
+// GLOBAL VARIABLE FOR RM
+bool am_primary=false;
 
 // CLASSES DEFINED
 struct User{
@@ -84,7 +89,7 @@ class Functor{
 	}
 	~Functor(){ 
 		cout << "~Functor()" << endl; 
-		if(connfd!=MOVED_CONNFD) { close(connfd); }
+		if(am_primary && connfd!=MOVED_CONNFD) { close(connfd); }
 		delete clean_up;
 	}
 	
@@ -96,6 +101,7 @@ class Functor{
 // GLOBAL VARIABLES
 mutex lock_distributor; // used by mt_open to handle lock distribution
 vector<FileLock> file_locks;
+vector<int> rm_connfds(NUM_BKUPS);
 
 // GLOBAL CONSTANTS
 const int  MIN_USER_LEN=8, MAX_USER_LEN=24+1, MIN_PWD_LEN=10, MAX_PWD_LEN=32+1, MAX_ID_LEN=10+1; // at most 10 digits for the # of users
@@ -108,7 +114,7 @@ const int  USERS_PER_FILE=10, FID_HDR_LEN=5, FLRS_PER_LINE=10, MAX_FLR_LINE_LEN=
 const char MY_DELIMITER=' '; // while this is a global, the code will only function if this is a whitespace character
 const int  WOOTS_PER_LINE=10, MAX_WOOT_LEN=100, MAX_WOOT_TMSTP=22, MAX_WOOT_LINE=(10)*(100+1+22+1);
 const int  MAX_WOOT_LINE_LEN=WOOTS_PER_LINE*(MAX_WOOT_LEN+1+MAX_WOOT_TMSTP+1);
-const string FILE_PATH="/var/www/html";
+string FILE_PATH="/var/www/html";
 const int MSG_SIZE=560;
 	
 	
@@ -1479,18 +1485,21 @@ void handle_php(int connfd, char* cmd, int cmd_size){
 	else { reply(connfd, received_ss.str() ); } //invalid commands handled here
 }
 
-void listen_socket(int& listenfd, int& connfd, struct sockaddr_in& servaddr){  
+void listen_socket(int& listenfd, int& connfd, int port){  
    	/*
 	  From Stevens Unix Network Programming, vol 1.
 	  Minor modifications by John Sterling
 	  Further minor modifications by Robert Ryszewski
 	 */
+    struct sockaddr_in	servaddr;  // Note C use of struct
     // 1. Create the socket
     if ((listenfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
     	perror("Unable to create a socket");
     	exit(1);
     }
-    setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, NULL, 0);
+    int options=1;
+    setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, &options, sizeof(options) );
+    
     // 2. Set up the sockaddr_in
     // zero it.  
     // bzero(&servaddr, sizeof(servaddr)); // Note bzero is "deprecated".  Sigh.
@@ -1498,7 +1507,7 @@ void listen_socket(int& listenfd, int& connfd, struct sockaddr_in& servaddr){
     servaddr.sin_family      = AF_INET; // Specify the family
     // use any network card present
     servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
-	servaddr.sin_port        = htons(PORT_NUM);	// wooter file server
+	servaddr.sin_port        = htons(port);	// wooter file server
 
     // 3. "Bind" that address object to our listening file descriptor
 	if (bind(listenfd, (SA *) &servaddr, sizeof(servaddr)) == -1) {
@@ -1514,13 +1523,15 @@ void listen_socket(int& listenfd, int& connfd, struct sockaddr_in& servaddr){
 	} 
 }
 
-void rm_socket(int& rm_connfd, struct sockaddr_in& rm_addr){
+int rm_socket(int& rm_connfd, int port){
 	/*
 	  From Stevens Unix Network Programming, vol 1.
 	  Minor modifications by John Sterling
 	  Further minor modifications by Robert Ryszewski
 	*/
-	 
+	
+	struct sockaddr_in rm_addr;
+    
     // 1. Create the socket
     if ((rm_connfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
     	perror("Unable to create a socket");
@@ -1533,64 +1544,179 @@ void rm_socket(int& rm_connfd, struct sockaddr_in& rm_addr){
     rm_addr.sin_family      = AF_INET; // Specify the family
     // use any network card present
     rm_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-	rm_addr.sin_port        = htons(PORT_NUM_RM);	// wooter file server
+	rm_addr.sin_port        = htons(port);	// wooter file server
 
-	if (connect(rm_connfd , (struct sockaddr *)&rm_addr , sizeof(rm_addr)) < 0 ) {
+	int success=connect(rm_connfd , (struct sockaddr *)&rm_addr , sizeof(rm_addr));
+	if ( success < 0 ) {
         perror("connect failed. Error");
     }     
-    
+    return success;
+
 }
 
-void net_connection(char** argv){
-	int	listenfd, connfd;  // Unix file descriptors. its just an int
-    struct sockaddr_in	servaddr;  // Note C use of struct
-	listen_socket(listenfd, connfd, servaddr);
-	
-	int rm_connfd;
-	struct sockaddr_in rm_addr;
-	rm_socket(rm_connfd, rm_addr);
-	
-	int bytes_sent=0;
-	
-	string msg="just a friendly test message meaning no harm";
-	msg.resize(MSG_SIZE, 'z');
-	
-	//~ bytes_sent=write(rm_connfd, msg.c_str(), strlen(msg.c_str()));
-	//~ bytes_sent=write(rm_connfd, msg.c_str(), strlen(msg.c_str()));
-		string rm_cmd="new_rm "+to_string(PORT_NUM);
-		rm_cmd.resize(MSG_SIZE);
-		bytes_sent=write(rm_connfd, rm_cmd.c_str(), MSG_SIZE);
+int poll_rm_ports(){
+	for( size_t i=0; i<NUM_BKUPS; i++){
+		int rm_connfd=-1;
+		cout << "port #: " << PORT_PRIM+i << endl;
+		int success=rm_socket(rm_connfd, PORT_PRIM+i);
+		if(success < 0) { // assume port is taken
+			cout << "errno: " << errno << endl; 
+			if(PORT_PRIM+i==PORT_PRIM) { am_primary=true; }
+			cout << "port success" << endl;
+			close(rm_connfd); // close the client socket, so can make a listen socket
+			return PORT_PRIM+i;
+		}
+		else { close(rm_connfd); }
+	}	
+	cerr << "No ports available for another RM, max # of ports hit" << endl;
+	exit(42);
+	return -1;
+}
+
+void connect_rms(){ // primary omitted
+	for( size_t i=1; i<NUM_BKUPS; i++){
+		int rm_connfd=-1;
+		cout << "port #: " << PORT_PRIM+i << endl;
+		int success=rm_socket(rm_connfd, PORT_PRIM+i);
+		if(success >= 0) { // assume port is taken
+			cout << "port success" << endl;	
+			rm_connfds[i]=rm_connfd;
+		}
+		else { close(rm_connfd); }
+	}		
+}
+
+// need a # of RMs now, a max, fixed #
+// for future expansion, could always have a PHP ARGs cmd for "UPDATE # OF RMS"
+// so as an RM come sup, with a port #, it tells the others it knows about
+// who update that connection or port #, and tell the others, in case they know of any he doesn't
+
+void write_rms(char* cmd){
+	for(size_t i=0; i<rm_connfds.size(); i++){
+		if(rm_connfds[i]!=0){ // default initialized value
+			int bytes_sent=write(rm_connfds[i], cmd, MSG_SIZE); // write to RM's listen socket
+			cout << "SENT " << bytes_sent << " to RM at PORT # " << PORT_PRIM+i << "." << endl;
+		}		
+	}
+}
 
 
 
-	for ( ; ; ) {
-        // 5. Block until someone connects.
-        //    We could provide a sockaddr if we wanted to know details of whom we are talking to.
-        //    Last arg is where to put the size of the sockaddr if we asked for one
-		fprintf(stderr, "Ready to connect.\n");
+void net_connection(char** argv){	
+	int my_port=poll_rm_ports(); // sets am_primary = true if you get the PORT_PRIM
+	int listenfd, connfd, prim_connfd;
+	if(am_primary){  // connect to rms and wait for client requests
+		listen_socket(listenfd, connfd, my_port);
+		connect_rms(); // if just an RM, you only connect when sense a crash
+	} 
+	else { // connect to primary and wait for commands
+		// PUT THIS ALL IN ONE EASY FUNCTION, OR SEVERAL MODULAR FUNCTIONS
+		
+		// handle_file_path()
+		// notify_prim()
+		// then the few lines that make up connect_prim()
+		
+		//~ int success=rm_socket(prim_connfd, PORT_PRIM); 
+		FILE_PATH=FILE_PATH+"/rm_"+to_string(my_port-PORT_PRIM);
+		int result=access(FILE_PATH.c_str(), F_OK);
+		if( (result < 0) && (errno == ENOENT) ) { // if directory does not exist
+			cerr << "The directory: " << FILE_PATH << " does not exist" << endl;
+			mkdir(FILE_PATH.c_str(), S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
+			cerr << "Have created dir! " << endl;
+		} // else the directory already exists
+		
+		rm_socket(prim_connfd, PORT_PRIM); // connect as to other server to tell it "I AM A NEW RM, ADD ME"
+		// WHAT IF THIS FAILS
+		string notify_prim="new_rm "+to_string(my_port);
+		notify_prim.resize(MSG_SIZE);
+		int bytes_sent=write(prim_connfd, notify_prim.c_str(), MSG_SIZE);		
+		close(prim_connfd); // free up that port
+		listen_socket(listenfd, connfd, my_port); // now create a listen port and wait for the PRIM to connect to you
+		
+		fprintf(stderr, "Ready to connect!\n");
 		if ((connfd = accept(listenfd, (SA *) NULL, NULL)) == -1) {
 			perror("accept failed");
 			exit(4);
 		}
 		fprintf(stderr, "Connected\n");
+	
+		// if not successful ...?
+	}	
+	// SET SOCK OPT
 
+	// bytes_sent=write_rms(...), basically a short for loop over global RM vector
+	
+	// if read_well==0, primary is down, connection is down
+	// assumes if one RM detects this, they'll all detect this and go into this voting process
+	// check for msgs from the other RMs? maybe got there first?
+	// connect_rms(); idempotently somehow?
+	// ask_down(); if nobody explicitly disagrees, proceed; thus avoid dealing with timeouts
+	// result=vote_rand()
+	// close connection to primary just to be kosher
+		// ???
+		// vote based on who has closest port # to primary, essentially random, acts like a usccession
+		
+		// if (result==won) { am_primary=true; }
+		// now loops around, starts accepting calls
+	
+	// php cmds: now one for "new_rm" and for "pri_down", respond YES or NO
+		// can't include random #, since they all have to talk to each other anyway
+		// ideally instead of n(n-1) messages being passed to vote, people pass the vector of what they have, and they save messages
+		
+	//~ int bytes_sent=0;	
+	//~ string msg="just a friendly test message meaning no harm";
+	//~ msg.resize(MSG_SIZE, 'z');
+	//~ bytes_sent=write(rm_connfd, msg.c_str(), strlen(msg.c_str()));
+	//~ bytes_sent=write(rm_connfd, msg.c_str(), strlen(msg.c_str()));
+	//~ string rm_cmd="new_rm "+to_string(PORT_NUM);
+	//~ rm_cmd.resize(MSG_SIZE);
+	//~ bytes_sent=write(rm_connfd, rm_cmd.c_str(), MSG_SIZE);
+	for ( ; ; ) {
+        // 5. Block until someone connects.
+        //    We could provide a sockaddr if we wanted to know details of whom we are talking to.
+        //    Last arg is where to put the size of the sockaddr if we asked for one
+        
+        if(am_primary){	// only ACCEPT more connections if am_primary
+			fprintf(stderr, "Ready to connect!\n");
+			if ((connfd = accept(listenfd, (SA *) NULL, NULL)) == -1) {
+				perror("accept failed");
+				exit(4);
+			}
+			fprintf(stderr, "Connected\n");
+		}
+		
    		// We had a connection.  Do whatever our task is.
 		char* cmd= new char[MSG_SIZE]; // dynamic array so each thread has its own heap cmd
 		int read_well=read(connfd, cmd, MSG_SIZE);
 		cmd[MSG_SIZE-1]='\0'; // stringstream's life is easier
-		
 		//~ char pause=getchar();
 		// before processing the command yourself, tell the RM to do it in parallel
-
-		
-		
-		bytes_sent=write(rm_connfd, cmd, MSG_SIZE);
-		cout << "Bytes sent:" << bytes_sent << endl;		
+		//~ cout << "Bytes sent:" << bytes_sent << endl;		
 		cout << "Received cmd: " << cmd << endl;
 		
+		// ~Functor() only closes connfd if you ARE the primary, and that's a client connfd
 		if(read_well==MSG_SIZE){ // copy connfd by value, so each thread keeps its own connfd
-			thread client_request([connfd, cmd] { Functor handler(connfd, cmd, MSG_SIZE); });
-			client_request.detach(); // so if main exits we dont crash everything
+			if(cmd[0]=='n' && cmd[1]=='e' && cmd[2]=='w' && cmd[3]=='_' && cmd[4]=='r' && cmd[5]=='m'){	
+				stringstream port_ss;
+				port_ss.str(string(cmd));
+				string port_str, garbage;
+				port_ss >> garbage >> port_str;
+				close(connfd); // close this client's socket to me
+				
+				int rm_connfd; // open a socket to the RM's listen socket
+				int success=rm_socket(rm_connfd, stoi(port_str) );
+				if(success >= 0) { 
+					cout << "SUCCESS: Adding rm #" << port_str << endl;
+					rm_connfds[stoi(port_str)-PORT_PRIM]=connfd; 
+				}
+				else { close(rm_connfd); }			
+			} // if new_rm, do NOT want to close that connfd like every client request does
+			else{
+				// only write cmds to RM that are not "add new RM". RM does not care about all the other RMs
+				if(am_primary) { write_rms(cmd); } // successful bytes sent mentioned inside
+				thread client_request([connfd, cmd] { Functor handler(connfd, cmd, MSG_SIZE); });
+				client_request.detach(); // so if main exits we dont crash everything
+			}
 		} // else fails silently	
 		//~ close(rm_connfd); // only need to tell RM the command, and dont care about any replies
 	}
