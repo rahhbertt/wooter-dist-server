@@ -114,6 +114,7 @@ const int  USERS_PER_FILE=10, FID_HDR_LEN=5, FLRS_PER_LINE=10, MAX_FLR_LINE_LEN=
 const char MY_DELIMITER=' '; // while this is a global, the code will only function if this is a whitespace character
 const int  WOOTS_PER_LINE=10, MAX_WOOT_LEN=100, MAX_WOOT_TMSTP=22, MAX_WOOT_LINE=(10)*(100+1+22+1);
 const int  MAX_WOOT_LINE_LEN=WOOTS_PER_LINE*(MAX_WOOT_LEN+1+MAX_WOOT_TMSTP+1);
+const string ROOT_PATH="/var/www/html";
 string FILE_PATH="/var/www/html";
 const int MSG_SIZE=560;
 	
@@ -1485,7 +1486,7 @@ void handle_php(int connfd, char* cmd, int cmd_size){
 	else { reply(connfd, received_ss.str() ); } //invalid commands handled here
 }
 
-void listen_socket(int& listenfd, int& connfd, int port){  
+int listen_socket(int& listenfd, int& connfd, int port){  
    	/*
 	  From Stevens Unix Network Programming, vol 1.
 	  Minor modifications by John Sterling
@@ -1495,7 +1496,7 @@ void listen_socket(int& listenfd, int& connfd, int port){
     // 1. Create the socket
     if ((listenfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
     	perror("Unable to create a socket");
-    	exit(1);
+    	return -1; // for when try to assume primary
     }
     int options=1;
     setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, &options, sizeof(options) );
@@ -1512,15 +1513,16 @@ void listen_socket(int& listenfd, int& connfd, int port){
     // 3. "Bind" that address object to our listening file descriptor
 	if (bind(listenfd, (SA *) &servaddr, sizeof(servaddr)) == -1) {
 		perror("Unable to bind port");
-		exit(2);
+		return -1; // this may cause problems
 	}
 	
 	// 4. Tell the system that we are going to use this sockect for
     //    listening and request a queue length
 	if (listen(listenfd, LISTENQ) == -1) {
 		perror("Unable to listen");
-		exit(3);
+		return -1; // this may cause problems
 	} 
+	return 0;
 }
 
 int rm_socket(int& rm_connfd, int port){
@@ -1600,18 +1602,15 @@ void write_rms(char* cmd){
 	}
 }
 
-
-
-void net_connection(char** argv){	
-	int my_port=poll_rm_ports(); // sets am_primary = true if you get the PORT_PRIM
-	int listenfd, connfd, prim_connfd;
+void decide_status(int& connfd, int& listenfd, int my_port){
+	int prim_connfd;
 	if(am_primary){  // connect to rms and wait for client requests
 		listen_socket(listenfd, connfd, my_port);
 		connect_rms(); // if just an RM, you only connect when sense a crash
 	} 
 	else { // connect to primary and wait for commands
 		// handle_file_path()
-		FILE_PATH=FILE_PATH+"/rm_"+to_string(my_port-PORT_PRIM);
+		FILE_PATH=ROOT_PATH+"/rm_"+to_string(my_port-PORT_PRIM);
 		int result=access(FILE_PATH.c_str(), F_OK);
 		if( (result < 0) && (errno == ENOENT) ) { // if directory does not exist
 			cerr << "The directory: " << FILE_PATH << " does not exist" << endl;
@@ -1637,7 +1636,12 @@ void net_connection(char** argv){
 		fprintf(stderr, "Connected\n");	
 		// if not successful ...?
 	}	
-	
+}
+
+void net_connection(char** argv){	
+	int my_port=poll_rm_ports(); // sets am_primary = true if you get the PORT_PRIM
+	int listenfd, connfd;
+	decide_status(connfd, listenfd, my_port);
 	// if read_well==0, primary is down, connection is down
 	// assumes if one RM detects this, they'll all detect this and go into this voting process
 	// check for msgs from the other RMs? maybe got there first?
@@ -1699,16 +1703,41 @@ void net_connection(char** argv){
 			}
 		} // else fails silently	
 		else if(!am_primary && read_well==0) { // primary's connect_rms receives empty "" messages
-			
-			
-			
 			// this assumes only one RM in entire model
-			
 			// also conceptually only become primary if you are no talready
 			close(connfd);
 			close(listenfd);
-			listen_socket(listenfd, connfd, PORT_PRIM);
-			am_primary=true;		
+			
+			// race condition here?
+			// if RM1 gets primary too late, RM2 tries to decide status.. ?
+			// should I while loop?
+			
+			
+			// the actual assuming primary SEEMS to work
+			// but if you run 0_follow_gen everything breaks
+			// try running 0_follow_gen on just primary running
+			// make the decide_status() at the top messes something up
+			
+			// then run it once RM crashes, and see where it fails and what and why
+			
+			
+			// IT APPEARS THAT THE RM_* DIRS ARE NOT BEING CREATED
+			// CHECK IF USING ROOT_PATH INSTEAD OF FILE_PATH HAD ANYTHING TO DO WITH THAT
+			
+			
+			if( listen_socket(listenfd, connfd, PORT_PRIM) != -1) {
+				// error check
+				am_primary=true;		
+				cout << "SUCCESS: RM #" << my_port-PORT_PRIM << " has assumed PRIMARY" << endl;
+				FILE_PATH=ROOT_PATH;
+				my_port=PORT_PRIM;
+			}
+			else{
+				close(connfd);
+				close(listenfd);
+				my_port=poll_rm_ports();
+				decide_status(connfd, listenfd, my_port);
+			}
 		}
 		//~ close(rm_connfd); // only need to tell RM the command, and dont care about any replies
 	}
