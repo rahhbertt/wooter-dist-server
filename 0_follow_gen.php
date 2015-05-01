@@ -20,7 +20,7 @@ if(!file_exists( $FILE_PATH."fids/fids.txt" )){
 
 $usernum=0; $offset=1;
 for($usernum=0; $usernum<20; $usernum++){
-	for($offset=10; $offset<35; $offset++){
+	for($offset=10; $offset<25; $offset++){
 		echo "User num: ".$usernum." Offset: ".($offset%20)."<br>";
 		$user_obj=read_user("test_acc".$usernum);
 		if( ($usernum+$offset)%20 == $offset%20) { $offset2=1;} 
