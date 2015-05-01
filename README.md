@@ -4,6 +4,8 @@
 ##### **Semester Long Design Project: Due May 1st, 2015**
 
 ##### **Professor: John Sterling**
+
+##### **Programmer: Robert Ryszewski**
 ------
 **Objective:** To design a low-level website in stages that will ultimately be multi-threaded, networked, and replicated.
 
