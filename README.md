@@ -1,14 +1,29 @@
-# wooters
-Semester long project for Parallel &amp; Distributed Systems : Twitter clone written in html and php, with networked back end in C++, then multi-threaded and later replicated.
+# Wooter
+##### **CS3254: Parallel & Distributed Systems**
+
+##### **Semester Long Design Project: Due May 1st, 2015**
+
+##### **Professor: John Sterling**
+------
+**Objective:** To design a low-level website in stages that will ultimately be multi-threaded, networked, and replicated.
+
+**Overview:**
+- Stage 0: HTML Mock-up
+- Stage 1: PHP Back-end & File Handling (No databases or SQL)
+- Stage 2: Networked Back-end Server (PHP only client-facing)
+- Stage 3: Multi-threaded Back-end Server
+- Stage 4: Replicated Back-end Server
+
+**Documentation:**
+- Functions for each module are extensively documented
+- Notes on multithreading and replication provided in separate README files
 
 **Goals for Future Improvement :**
 - Make use of separate compilation for the functions in each module
 - Offload the testing code into a separate module of its own
     - Improve rigor of testing code in general
-- Improve overall robustness/error handling/worst case scenarios & race conditions
+- Further improve overall robustness/error handling/worst case scenarios & race conditions
 - Allow for a non-fixed # of RMs, to better represent arbitrary IP addresses of RMs
     - Do so by connecting to primary, and telling it and all known RMs to update their lists
-    - Now wouldn't have fixed access time for list of RMs, but need to scan over the vector
-- Would need to store pairs of connection file descriptors with IP addresses
--Instead of giving the system a command to copy local primary's file, implement a program that would accomplish this over the network. Either for the system() to call, or as part of the current .cpp. Interface would be the same, only instead of cp we'd have this.
-
+    - Would need to store pairs of connection file descriptors with IP addresses
+- Replace the current form of syncing the RM with the primary (calling "cp" on the local files) with a network-appropriate solution ("scp", a custom program, or an expansion to the .cpp).
