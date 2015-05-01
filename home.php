@@ -149,7 +149,7 @@ function home_other($string){ if(isset($_GET['user'])){ echo $string; } }
 					<td></td>
 					<td align="center">
 						<p class="tcenter">  
-							<font class="tcolor" size="6"> <-Wooter 1.3-> </font> 
+							<font class="tcolor" size="6"> <-Wooter 1.4-> </font> 
 							<?php // if its your own home page, show a welcome message  		
 							if(!isset($_GET['user'])){ echo "</p><p><font class='tcolor'> Welcome to Your Wooter Home Page. </font>"; }
 							?>
@@ -170,7 +170,6 @@ function home_other($string){ if(isset($_GET['user'])){ echo $string; } }
 						home_other(" </font> </a> </td></tr> <tr><td><form method='post'>");
 						if(isset($_GET['user'])&&!isset($user_dne)){
 							$answer = already_following($home_user, $other_user->id);
-							//~ echo "received answer: ".$answer."\n";
 							if(!isset($answer)){ echo "<input type='submit' class='button' name='follow' value='Follow' style='width:100%'>" ;  }
 							else { echo "<input type='submit' class='button' name='unfollow' value='Unfollow' style='width:100%'>" ;  }
 						}
@@ -296,9 +295,14 @@ function home_other($string){ if(isset($_GET['user'])){ echo $string; } }
 </table>
 </td></tr>
 <tr><td>
-	<form action="deactivate.php" method="post" align="right">
+	
+	<?php
+	if(isset($home_user->username)){ // else letting a non logged in user deactivate is a problem
+	echo '<form action="deactivate.php" method="post" align="right">
 		<a href="deactivate.php" class="button tcolor"> Deactivate your account </a>
-	</form>
+	</form>';
+	}
+	?>
 </table>
 </td></tr>
 
