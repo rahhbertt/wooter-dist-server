@@ -21,7 +21,10 @@ DO THIS AS A READ.ME ON GITHUB (for what would WANT to imrpove on)
 GLOBAL LIST OF rm_connfds
 
 	
-	
+	// need a # of RMs now, a max, fixed #
+// for future expansion, could always have a PHP ARGs cmd for "UPDATE # OF RMS"
+// so as an RM come sup, with a port #, it tells the others it knows about
+// who update that connection or port #, and tell the others, in case they know of any he doesn't
 	
 			// ~Functor() only closes connfd if you ARE the primary, and that's a client connfd
 		// copy connfd by value, so each thread keeps its own connfd

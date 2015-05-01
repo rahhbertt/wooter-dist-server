@@ -1,4 +1,3 @@
-// my includes
 #include <iostream>
 #include <fstream>
 #include <errno.h> // access, ENOENT
@@ -8,7 +7,7 @@
 #include <vector>
 #include <thread>  
 #include <mutex>
-// credited includes
+// includes provided from code from Stevens Unix Network Programming, vol 1.
 #include <stdio.h>       // perror, snprintf
 #include <stdlib.h>      // exit
 #include <unistd.h>      // close, write
@@ -20,19 +19,19 @@
 #include <netinet/in.h>  // servaddr, INADDR_ANY, htons
 #include <arpa/inet.h> // inet_addr
 
-// credited defines
+// defines provided from code from Stevens Unix Network Programming, vol 1.
 #define	MAXLINE		4096
 #define	BUFFSIZE	8192
 #define SA struct sockaddr
 #define	LISTENQ		1024
-// my defines
+// original defines
 #define PORT_PRIM    13090
 #define NUM_BKUPS	10
 #define MOVED_CONNFD -10
 
 using namespace std;
 
-// FORWARD DECLARATION of function needed for Functor class
+// FORWARD DECLARATION of function needed for Functor operator()()
 void handle_php(int connfd, char* cmd, int cmd_size);
 
 // GLOBAL VARIABLE for ~Functor()
@@ -128,6 +127,7 @@ int main(int argc, char **argv) {
 
 
 
+
 // REPLICATION HANDLING FUNCTIONS
 int listen_socket(int& listenfd, int& connfd, int port); // it's a network function, but needed here
 
@@ -164,15 +164,11 @@ int rm_socket(int& rm_connfd, int port){
 
 }
 
-
-// need a # of RMs now, a max, fixed #
-// for future expansion, could always have a PHP ARGs cmd for "UPDATE # OF RMS"
-// so as an RM come sup, with a port #, it tells the others it knows about
-// who update that connection or port #, and tell the others, in case they know of any he doesn't
-
 void write_rms(char* cmd){
+	.// write_rms() simply takes in a command and relays it to all the RMs to execute it on their own data sets.
+	cout << "ATTEMPT: to write a command to all connected RMs" << endl;
 	for(size_t i=0; i<rm_connfds.size(); i++){
-		if(rm_connfds[i]!=0){ // default initialized value
+		if(rm_connfds[i]!=0){ // default initialized value; as far as we know it's still validly connected
 			int bytes_sent=write(rm_connfds[i], cmd, MSG_SIZE); // write to RM's listen socket
 			cout << "SENT " << bytes_sent << " to RM at PORT # " << PORT_PRIM+i << "." << endl;
 		}		
@@ -329,6 +325,7 @@ int poll_rm_ports(bool attempted_primary=false){
 	cerr << "FAILURE: All RM ports taken, none left available" << endl;
 	exit(42);
 }
+
 
 
 
@@ -1661,18 +1658,21 @@ void handle_php(int connfd, char* cmd, int cmd_size){
 }
 
 int listen_socket(int& listenfd, int& connfd, int port){  
-   	/*
+	/*
+	  listen_socket() creates a listening socket using the passed in connfd, listenfd, and port #.
+	  * This is similar to rm_socket(), only using bind() and listen() instead of connect().
+	  * NOTE: accept() is not performed here and left for the caller to do as they wish.
+	  * RETURN: The error code returned by socket(), bind(), or listen().
+	  
 	  From Stevens Unix Network Programming, vol 1.
 	  Minor modifications by John Sterling
 	  Further minor modifications by Robert Ryszewski
-	 */
+	*/
     struct sockaddr_in	servaddr;  // Note C use of struct
     // 1. Create the socket
     if ((listenfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
     	perror("Unable to create a socket");
-    	
     	close(listenfd);
-    	
     	return -1; // for when try to assume primary
     }
     int options=1;
@@ -1688,28 +1688,28 @@ int listen_socket(int& listenfd, int& connfd, int port){
 	servaddr.sin_port        = htons(port);	// wooter file server
 
     // 3. "Bind" that address object to our listening file descriptor
-	if (bind(listenfd, (SA *) &servaddr, sizeof(servaddr)) == -1) {
-		
+	if (bind(listenfd, (SA *) &servaddr, sizeof(servaddr)) == -1) {		
 		close(listenfd);
-		
 		perror("Unable to bind port");
-		return -1; // this may cause problems
+		return -1;
 	}
 	
 	// 4. Tell the system that we are going to use this sockect for
     //    listening and request a queue length
-	if (listen(listenfd, LISTENQ) == -1) {
-		
+	if (listen(listenfd, LISTENQ) == -1) {		
 		close(listenfd);
-		
 		perror("Unable to listen");
 		return -1; // this may cause problems
 	} 
-	return 0;
+	return 0; // no problems
 }
 
-
 void net_connection(char** argv){	
+	/*
+	net_connection() establishes the server's network connection (either as primary, or a backup RM)
+	* and handles all incoming network commands from there (either from client side PHP, or relayed cmds
+	* from the primary).
+	*/
 	int my_port=poll_rm_ports(); // sets am_primary = true if you get the PORT_PRIM
 	int listenfd, connfd;
 	decide_status(connfd, listenfd, my_port);
@@ -1722,7 +1722,7 @@ void net_connection(char** argv){
 				exit(4);
 			}
 			fprintf(stderr, "\tConnected\n");
-		}
+		} // RMs simply keep their connection to the primary
 		
 		char* cmd= new char[MSG_SIZE]; // dynamic array so each thread has its own heap cmd
 		int read_well=read(connfd, cmd, MSG_SIZE);		
@@ -1769,13 +1769,14 @@ void net_connection(char** argv){
 				}
 				cout << "SUCCESS: obtained RM port # " << my_port << ", after not assuming primary" << endl;
 			}
-		}
+		} // all other cases where read_well!=MSG_SIZE fail silently, we simply proceed
 	}
-	// 6. Close the connection with the current client and go back for another.
+	// Close the connection with the current client and go back for another.
 	// 		This step has been moved to the destructor of the Functor class so that
 	// 		we have exception safety and all network connections are eventually closed, 
 	//	 	even on threads that crash unexpectedly.
 }
+
 
 
 

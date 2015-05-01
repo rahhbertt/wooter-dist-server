@@ -23,7 +23,9 @@ GLOBAL LIST OF rm_connfds
 	
 	
 	
-	
+			// ~Functor() only closes connfd if you ARE the primary, and that's a client connfd
+		// copy connfd by value, so each thread keeps its own connfd
+		
 how relaying the commands is consistent
 	except for follow,f or writes, since those dependo n user id
 		so have to get your own user ID
