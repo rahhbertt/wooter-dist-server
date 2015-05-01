@@ -1,0 +1,67 @@
+PORT_PRIM like a main IP
+NUM_BKUPS is 10 but can be arbitrarily largel ike 1000
+	its just so that i you can a primary on unexpected port #
+		you can instant access, no need to search
+	in reality, instead of just connfds, wed want a pair or a second vector
+	that stores the addrses
+		so that they could arrive out of order, we could do push_back, etc
+am_primary global
+
+		
+
+make separate compilation
+	make tester code separate compilation
+
+
+
+DO THIS AS A READ.ME ON GITHUB (for what would WANT to imrpove on)
+	separate MULTITHREADING notes
+	separate RM notes
+
+GLOBAL LIST OF rm_connfds
+
+	
+	
+	
+	
+how relaying the commands is consistent
+	except for follow,f or writes, since those dependo n user id
+		so have to get your own user ID
+	load following too? check
+
+
+// NOTE: exit(code) calls are only for impossible-state scenarios. If at least one user is register()'d, then all subsequent functions
+// will work accordingly. If functions like follow() are called before a single user if ever registered, then we have these impossible-state scenarios.
+
+/*
+Notes on how multi-threading was handled for Stage 3 of the project:
+* 0) All lock handling and distribution is handled by the mt_open() function, which takes in an absolute file path
+* 		and acquires the appropriate lock for that file. To prevent race conditions, mt_open() is generally called
+* 		before every call to the access() function, to check file existence/accessibility.
+* 1) Locks are only obtained and released in client-facing user functions, such as create_new_user(), follow(), write_woot(), load_woots(), etc.
+* 2) Internal functions used to implement the client-facing functions (create_file(), flush_user(), fids_decrease())
+* 	   	have their lock handling done in the client-facing functions that call them.
+* 3) Any functions that modify database contents (create_new_user(), follow(), write_woot()) 
+* 		follow a strict lock ordering in where they first acquire the lock for their user's file, 
+* 		and then they acquire the lock(s) for whatever files they'll need to access or modify.
+* 4) Any functions that simply READ database conents (read_user(), load_following(), load_woots())
+* 		 simply acquire the locks for the specific file(s) that they need.
+* 5) a) Thus functions that modify database contents on some given file for a user do not block
+* 		functions that simply want to read content on some other file for the user/any user in the same user file.
+* 	 b) While read and write locks are not implemented on individual given files, (for the sake of reduced compelxity)
+*    	this allows for a similar performance improvement of read locks for operations on a given block of users
+* 		that share the same user file.
+* 6) While this seems to create race conditions, updates only occur in modifying calls like follow() within
+* 		a single file at a time. Thus the only race condition is a reading function obtaining data that will
+* 		soon be eventually updated, and thus providing the client with stale data.
+* 	 However, stale data is an acceptable race condition as the odds of a modifying thread
+* 	 and a reading thread on the same user occuring this way are so low, that it's more likely
+* 	 stale data will be returned anyhow due to network latency differences of the update
+* 	 being sent to the server, and the read occuring just before the update happens to arrive.
+* 
+* 7) Two functions have their lock handling done in handle_php itself: already_following(), and flush_user().
+* 	These two are an exception as they are non-client-facing functions that are directly called by the php.
+* 	(already_following() to update the "Follow" button appropriately, flush_user() to update after deactivation)
+*/	
+
+

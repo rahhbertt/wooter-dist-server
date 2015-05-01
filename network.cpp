@@ -1,13 +1,14 @@
-#include <string>
-#include <fstream>
+// my includes
 #include <iostream>
+#include <fstream>
 #include <errno.h> // access, ENOENT
-#include <sstream> // for concatenating ints and strings
 #include <sys/stat.h> // for mkdir
+#include <string>
+#include <sstream> // for concatenating ints and strings
 #include <vector>
-#include <thread> // for stage 3
+#include <thread>  
 #include <mutex>
-
+// credited includes
 #include <stdio.h>       // perror, snprintf
 #include <stdlib.h>      // exit
 #include <unistd.h>      // close, write
@@ -19,19 +20,14 @@
 #include <netinet/in.h>  // servaddr, INADDR_ANY, htons
 #include <arpa/inet.h> // inet_addr
 
-
-//~ #include <csystem>
-
-
+// credited defines
 #define	MAXLINE		4096
 #define	BUFFSIZE	8192
 #define SA struct sockaddr
 #define	LISTENQ		1024
+// my defines
 #define PORT_PRIM    13090
 #define NUM_BKUPS	10
-
-#define PORT_NUM_RM 13092
-
 #define MOVED_CONNFD -10
 
 using namespace std;
@@ -39,7 +35,7 @@ using namespace std;
 // FORWARD DECLARATION of function needed for Functor class
 void handle_php(int connfd, char* cmd, int cmd_size);
 
-// GLOBAL VARIABLE FOR RM
+// GLOBAL VARIABLE for ~Functor()
 bool am_primary=false;
 
 // CLASSES DEFINED
@@ -105,7 +101,7 @@ class Functor{
 // GLOBAL VARIABLES
 mutex lock_distributor; // used by mt_open to handle lock distribution
 vector<FileLock> file_locks;
-vector<int> rm_connfds(NUM_BKUPS);
+vector<int> rm_connfds(NUM_BKUPS); // initializes each item to 0
 
 // GLOBAL CONSTANTS
 const int  MIN_USER_LEN=8, MAX_USER_LEN=24+1, MIN_PWD_LEN=10, MAX_PWD_LEN=32+1, MAX_ID_LEN=10+1; // at most 10 digits for the # of users
@@ -123,46 +119,218 @@ string FILE_PATH="/var/www/html";
 const int MSG_SIZE=560;
 	
 	
-// NOTE: exit(code) calls are only for impossible-state scenarios. If at least one user is register()'d, then all subsequent functions
-// will work accordingly. If functions like follow() are called before a single user if ever registered, then we have these impossible-state scenarios.
-
-/*
-Notes on how multi-threading was handled for Stage 3 of the project:
-* 0) All lock handling and distribution is handled by the mt_open() function, which takes in an absolute file path
-* 		and acquires the appropriate lock for that file. To prevent race conditions, mt_open() is generally called
-* 		before every call to the access() function, to check file existence/accessibility.
-* 1) Locks are only obtained and released in client-facing user functions, such as create_new_user(), follow(), write_woot(), load_woots(), etc.
-* 2) Internal functions used to implement the client-facing functions (create_file(), flush_user(), fids_decrease())
-* 	   	have their lock handling done in the client-facing functions that call them.
-* 3) Any functions that modify database contents (create_new_user(), follow(), write_woot()) 
-* 		follow a strict lock ordering in where they first acquire the lock for their user's file, 
-* 		and then they acquire the lock(s) for whatever files they'll need to access or modify.
-* 4) Any functions that simply READ database conents (read_user(), load_following(), load_woots())
-* 		 simply acquire the locks for the specific file(s) that they need.
-* 5) a) Thus functions that modify database contents on some given file for a user do not block
-* 		functions that simply want to read content on some other file for the user/any user in the same user file.
-* 	 b) While read and write locks are not implemented on individual given files, (for the sake of reduced compelxity)
-*    	this allows for a similar performance improvement of read locks for operations on a given block of users
-* 		that share the same user file.
-* 6) While this seems to create race conditions, updates only occur in modifying calls like follow() within
-* 		a single file at a time. Thus the only race condition is a reading function obtaining data that will
-* 		soon be eventually updated, and thus providing the client with stale data.
-* 	 However, stale data is an acceptable race condition as the odds of a modifying thread
-* 	 and a reading thread on the same user occuring this way are so low, that it's more likely
-* 	 stale data will be returned anyhow due to network latency differences of the update
-* 	 being sent to the server, and the read occuring just before the update happens to arrive.
-* 
-* 7) Two functions have their lock handling done in handle_php itself: already_following(), and flush_user().
-* 	These two are an exception as they are non-client-facing functions that are directly called by the php.
-* 	(already_following() to update the "Follow" button appropriately, flush_user() to update after deactivation)
-*/	
-
 void net_connection(char** argv);
 
 int main(int argc, char **argv) {	
 	net_connection(argv);
 	return 0;
 }
+
+
+
+// REPLICATION HANDLING FUNCTIONS
+int listen_socket(int& listenfd, int& connfd, int port); // it's a network function, but needed here
+
+int rm_socket(int& rm_connfd, int port){
+	/*
+	  rm_socket() creates a socket using the passed in rm_connfd and connects it to the specified host (localhost)
+	  * at the passed in port #. This is similar to listen_socket(), only using connect() instead of bind() and listen().
+	  * 
+	  * RETURN: The error code returned by connect().
+	  
+	  From Stevens Unix Network Programming, vol 1.
+	  Minor modifications by John Sterling
+	  Further minor modifications by Robert Ryszewski
+	*/
+	struct sockaddr_in rm_addr;
+    // 1. Create the socket
+    if ((rm_connfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+    	perror("Unable to create a socket");
+    	exit(1);
+    }
+
+    // 2. Set up the sockaddr_in
+    memset(&rm_addr, 0, sizeof(rm_addr));
+    rm_addr.sin_family      = AF_INET; // Specify the family
+    // use any network card present
+    rm_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+	rm_addr.sin_port        = htons(port);
+
+	int success=connect(rm_connfd , (struct sockaddr *)&rm_addr , sizeof(rm_addr));
+	if ( success < 0 ) {
+        perror("connect failed. Error");
+    }     
+    return success;
+
+}
+
+
+// need a # of RMs now, a max, fixed #
+// for future expansion, could always have a PHP ARGs cmd for "UPDATE # OF RMS"
+// so as an RM come sup, with a port #, it tells the others it knows about
+// who update that connection or port #, and tell the others, in case they know of any he doesn't
+
+void write_rms(char* cmd){
+	for(size_t i=0; i<rm_connfds.size(); i++){
+		if(rm_connfds[i]!=0){ // default initialized value
+			int bytes_sent=write(rm_connfds[i], cmd, MSG_SIZE); // write to RM's listen socket
+			cout << "SENT " << bytes_sent << " to RM at PORT # " << PORT_PRIM+i << "." << endl;
+		}		
+	}
+}
+
+void handle_being_polled(int& connfd, int& listenfd){
+	// handle_being_polled() handles receiving a "poll" cmd, whether this RM is the primary or not. 
+	cout << "RECEIVED: poll cmd" << endl;
+	close(connfd);
+	if(!am_primary){ // if you're a new RM, and you were waiting for the primary, and got a poll instead
+		// you have to wait again for the primary
+		fprintf(stderr, "Ready to connect!\n");
+		if ((connfd = accept(listenfd, (SA *) NULL, NULL)) == -1) {
+			perror("accept failed"); // inexplicable error
+		}
+		fprintf(stderr, "Connected\n");			
+	}
+}
+
+void handle_new_rm(const char* cmd, int& connfd){
+	/*
+	handle_new_rm() handles adding a new RM, that has notified the primary of its existence, to the
+	* list of all active RM connections.
+	*/
+	stringstream port_ss;
+	port_ss.str(string(cmd));
+	string port_str, garbage;
+	port_ss >> garbage >> port_str;
+	close(connfd); // close the current connection to the RM, which is solely for notification purposes
+	
+	int rm_connfd; // open a socket to the RM's listen socket
+	int success=rm_socket(rm_connfd, stoi(port_str) );
+	if(success >= 0) { // if connected to RM successfully, notify them/don't just let nothing be sent
+		garbage="SUCCESSFUL CONNECTION TO PRIMARY";
+		garbage.resize(MSG_SIZE);
+		write(rm_connfd, garbage.c_str(), MSG_SIZE);
+		// if you had a previous connection to an RM on that port/address, close it as it is no longer valid
+		if(rm_connfds[stoi(port_str)-PORT_PRIM] !=0) { close(rm_connfds[stoi(port_str)-PORT_PRIM]); }
+		cout << "SUCCESS: Adding rm #" << port_str << endl;
+		rm_connfds[stoi(port_str)-PORT_PRIM]=rm_connfd; 
+	}
+	else { close(rm_connfd); }	// seemingly impossible, as only get notified once RM has a listen socket set up
+}
+
+void connect_rms(){ 
+	/*
+	 connect_rms() is called only by the primary RM and attempts to establish connections
+	 * to all possible RM hosts (within the fixed # of NUM_BKUPS), and appends them to the 
+	 * global vector of RM connections if successful.
+	*/
+	cout << "ATTEMPT: as primary to connect to RMs" << endl;
+	for( size_t i=1; i<NUM_BKUPS; i++){
+		int rm_connfd=-1;
+		cout << "ATTEMPT: to connect to RM at port #" << PORT_PRIM+i << endl;
+		int success=rm_socket(rm_connfd, PORT_PRIM+i);
+		if(success >= 0) { // able to reach the host at that connection
+			cout << "SUCCESS: to connect to RM at port #" << PORT_PRIM+i << endl;
+			rm_connfds[i]=rm_connfd; // update our global list of RM connfds
+		}
+		else { 
+			cout << "FAILURE: to connect to RM at port #" << PORT_PRIM+i << endl;
+			close(rm_connfd); 
+		}
+	}		
+}
+
+int decide_status(int& connfd, int& listenfd, int my_port){
+	/*
+	decide_status() handles appropriately setting up an RM based on whether or not that RM is the primary.
+	* For the primary: a listen socket is created, and connections to all available RMs are created.
+		* Any RMs created in the future will notify the primary, and then be added to the list of RM connections.
+	* For the other RMs: a local directory is created for their replicated data, and they block the primary
+		* while they copy over the primary's data exactly. They then notify the primary, and accept a connection
+		* to the primary from which they will read replicated commands.   
+	* RETURN: Error status of 0 for no problems, -1 for a failure somewhere. 
+	*/
+	cout << "ATTEMPT: to decide status" << endl;
+	int prim_connfd;
+	if(am_primary){  // connect to rms and wait for client requests
+		listen_socket(listenfd, connfd, my_port);
+		connect_rms(); 
+	} 
+	else { // connect to primary and wait for commands
+		// adjust your file path accordingly, since only one RM can occupy the local /var/www/html
+		FILE_PATH=ROOT_PATH+"/rm_"+to_string(my_port-PORT_PRIM);
+		int result=access(FILE_PATH.c_str(), F_OK);
+		if( (result < 0) && (errno == ENOENT) ) { // if directory does not exist
+			cerr << "The directory: " << FILE_PATH << " does not exist" << endl;
+			mkdir(FILE_PATH.c_str(), S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
+			cerr << "Have created dir! " << endl;
+		} // else the directory already exists
+		// this would simply be omitted for RMs on different machines
+		
+		// connect to primary, create a listen socket, then tell primary you are a new RM, wait for its response
+		if( rm_socket(prim_connfd, PORT_PRIM) == -1){
+			perror("rm_socket failed");
+			return -1;
+		} 
+		if( listen_socket(listenfd, connfd, my_port) == -1) { // listen_socket() already handles perror			
+			close(prim_connfd); // free up that connection
+			return -1;
+		} 
+		// only tell primary to add you when your listen socket is in fact set up, so no race condition
+		string notify_prim="new_rm "+to_string(my_port);
+		notify_prim.resize(MSG_SIZE);
+		int bytes_sent=write(prim_connfd, notify_prim.c_str(), MSG_SIZE);		
+		if(bytes_sent!=MSG_SIZE){
+			cerr << "FAILURE: on new RM notifying primary" << endl; // seems non-fatal
+		} 
+		
+		// while you have the primary occupied and no client requests can come in, duplicate the files
+		string cmd="cp -r "+ ROOT_PATH + "/fids " + ROOT_PATH + "/users " + ROOT_PATH + "/flwes " + ROOT_PATH + "/flwrs " + ROOT_PATH + "/woots " + FILE_PATH;
+		system(cmd.c_str()); // on a multiple machine system, this should not be a blocking call
+		// and would thus run into all sorts of race condition problems/problems with freshness/validity of data
+		close(prim_connfd); // free up that port
+		cout << "SUCCESS: wrote new_rm # " << notify_prim << " to primary" << endl;			
+			
+		fprintf(stderr, "Ready to connect!\n");
+		if ((connfd = accept(listenfd, (SA *) NULL, NULL)) == -1) {
+			perror("accept failed");
+			return -1;
+		}
+		fprintf(stderr, "Connected\n");	
+	}	
+	return 0; // either primary or RM set up okay
+}
+
+int poll_rm_ports(bool attempted_primary=false){
+	/* 
+	poll_rm_ports() finds and returns the first available RM port #/address out of all the known # of backup RMs/addresses.
+	* If no available ports are found, the program exits as this program has no means to become an RM to the primary.
+	* NOTE: All non-available ports are sent a message of "poll" to notify them this connection is temporary and for polling purposes only.
+	*/
+	cout << "ATTEMPT: to poll ports" << endl;
+	for( size_t i=0; i<NUM_BKUPS; i++){
+		if(i==0 && attempted_primary) { continue; } // don't try to poll the primary port if you just failed doing that
+		int rm_connfd;
+		cout << "ATTEMPT: to poll port #: " << PORT_PRIM+i << endl;
+		int success=rm_socket(rm_connfd, PORT_PRIM+i);
+		if(success < 0) { // could not reach host on that port, assume the port is available
+			if(PORT_PRIM+i==PORT_PRIM) { am_primary=true; }
+			cout << "SUCCESS: port # " << PORT_PRIM+i << " polled as available " << endl;			
+			close(rm_connfd); // close this connection, since only wanted to find available port #
+			return PORT_PRIM+i;
+		}
+		else { // could reach host on that port, let them know this connection is just for polling
+			string just_poll="poll";
+			just_poll.resize(MSG_SIZE);
+			write(rm_connfd, just_poll.c_str(), MSG_SIZE);
+			close(rm_connfd); 
+		}
+	}	
+	cerr << "FAILURE: All RM ports taken, none left available" << endl;
+	exit(42);
+}
+
+
 
 // MULTI-THREADING HANDLER FUNCTION
 mutex& mt_open(string path){
@@ -1175,14 +1343,16 @@ void reply(int connfd, string msg){
 	reply(connfd, msg) takes a connection file descriptor, and a message, and sends out
 	* that variable length message over the network.
 	*/
-	stringstream reply_ss; // stringstream to append endl to message
-	reply_ss << msg << endl; // NEED that endl for php to know line has ended
-	cerr << endl << "Sending reply: " << reply_ss.str() << endl; // local output
-	string reply_s(reply_ss.str()); // make a string out of the stream
-	char* reply_c=new char[reply_s.size()]; // allocate space for a char* the size of our line
-	reply_s.copy(reply_c, reply_s.size() ); // fill that char* with the line's contents
-	write(connfd, reply_c, reply_s.size()); // write that char* with that size out to the network
-	delete[] reply_c;
+	if(am_primary){ // if just a BKUP RM, no sense to send a reply to primary
+		stringstream reply_ss; // stringstream to append endl to message
+		reply_ss << msg << endl; // NEED that endl for php to know line has ended
+		cerr << endl << "Sending reply: " << reply_ss.str() << endl; // local output
+		string reply_s(reply_ss.str()); // make a string out of the stream
+		char* reply_c=new char[reply_s.size()]; // allocate space for a char* the size of our line
+		reply_s.copy(reply_c, reply_s.size() ); // fill that char* with the line's contents
+		write(connfd, reply_c, reply_s.size()); // write that char* with that size out to the network
+		delete[] reply_c;
+	}
 }
 
 User* user_unexplode(stringstream& ss){
@@ -1538,292 +1708,68 @@ int listen_socket(int& listenfd, int& connfd, int port){
 	return 0;
 }
 
-int rm_socket(int& rm_connfd, int port){
-	/*
-	  From Stevens Unix Network Programming, vol 1.
-	  Minor modifications by John Sterling
-	  Further minor modifications by Robert Ryszewski
-	*/
-	
-	struct sockaddr_in rm_addr;
-    
-    // 1. Create the socket
-    if ((rm_connfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-    	perror("Unable to create a socket");
-    	exit(1);
-    }
-    // 2. Set up the sockaddr_in
-    // zero it.  
-    // bzero(&servaddr, sizeof(servaddr)); // Note bzero is "deprecated".  Sigh.
-    memset(&rm_addr, 0, sizeof(rm_addr));
-    rm_addr.sin_family      = AF_INET; // Specify the family
-    // use any network card present
-    rm_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-	rm_addr.sin_port        = htons(port);	// wooter file server
-
-	int success=connect(rm_connfd , (struct sockaddr *)&rm_addr , sizeof(rm_addr));
-	if ( success < 0 ) {
-        perror("connect failed. Error");
-    }     
-    return success;
-
-}
-
-int poll_rm_ports(){
-	cout << "in poll ports " << endl;
-	for( size_t i=0; i<NUM_BKUPS; i++){
-		int rm_connfd=-1;
-		cout << "port #: " << PORT_PRIM+i << endl;
-		int success=rm_socket(rm_connfd, PORT_PRIM+i);
-		if(success < 0) { // assume port is taken
-			cout << "errno: " << errno << endl; 
-			if(PORT_PRIM+i==PORT_PRIM) { am_primary=true; }
-			cout << "port success" << endl;
-			close(rm_connfd); // close the client socket, so can make a listen socket
-			return PORT_PRIM+i;
-		}
-		else { 
-			string just_poll="poll";
-			just_poll.resize(MSG_SIZE);
-			write(rm_connfd, just_poll.c_str(), MSG_SIZE); // what happens if it doesnt connect?
-			close(rm_connfd); 
-		}
-	}	
-	cerr << "No ports available for another RM, max # of ports hit" << endl;
-	exit(42);
-	return -1;
-}
-
-void connect_rms(){ // primary omitted
-	for( size_t i=1; i<NUM_BKUPS; i++){
-		int rm_connfd=-1;
-		cout << "port #: " << PORT_PRIM+i << endl;
-		int success=rm_socket(rm_connfd, PORT_PRIM+i);
-		if(success >= 0) { // assume port is taken
-			cout << "port success" << endl;	
-			rm_connfds[i]=rm_connfd;
-		}
-		else { close(rm_connfd); }
-	}		
-}
-
-// need a # of RMs now, a max, fixed #
-// for future expansion, could always have a PHP ARGs cmd for "UPDATE # OF RMS"
-// so as an RM come sup, with a port #, it tells the others it knows about
-// who update that connection or port #, and tell the others, in case they know of any he doesn't
-
-void write_rms(char* cmd){
-	for(size_t i=0; i<rm_connfds.size(); i++){
-		if(rm_connfds[i]!=0){ // default initialized value
-			int bytes_sent=write(rm_connfds[i], cmd, MSG_SIZE); // write to RM's listen socket
-			cout << "SENT " << bytes_sent << " to RM at PORT # " << PORT_PRIM+i << "." << endl;
-		}		
-	}
-}
-
-int decide_status(int& connfd, int& listenfd, int my_port){
-	cout << "in decide status " << endl;
-	int prim_connfd;
-	if(am_primary){  // connect to rms and wait for client requests
-		listen_socket(listenfd, connfd, my_port);
-		connect_rms(); // if just an RM, you only connect when sense a crash
-	} 
-	else { // connect to primary and wait for commands
-		// handle_file_path()
-		FILE_PATH=ROOT_PATH+"/rm_"+to_string(my_port-PORT_PRIM);
-		int result=access(FILE_PATH.c_str(), F_OK);
-		if( (result < 0) && (errno == ENOENT) ) { // if directory does not exist
-			cerr << "The directory: " << FILE_PATH << " does not exist" << endl;
-			mkdir(FILE_PATH.c_str(), S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
-			cerr << "Have created dir! " << endl;
-		} // else the directory already exists
-		
-		// notify_primary()
-		if( rm_socket(prim_connfd, PORT_PRIM) == -1){
-			perror("rm_socket failed");
-			return -1;
-		} // connect as to other server to tell it "I AM A NEW RM, ADD ME"
-		// WHAT IF THIS FAILS
-
-		
-		
-		
-		// wait_for_primary()
-		if( listen_socket(listenfd, connfd, my_port) == -1) {
-			// perror already done in function
-
-			// write a closing msg?
-			
-			
-			close(prim_connfd); // free up that port
-			return -1;
-		} // now create a listen port and wait for the PRIM to connect to you
-		
-		// only tell primary to add you if in fact your listen socket works, so no race condition
-		string notify_prim="new_rm "+to_string(my_port);
-		notify_prim.resize(MSG_SIZE);
-		int bytes_sent=write(prim_connfd, notify_prim.c_str(), MSG_SIZE);		
-		
-		// while you have the primary occupied and no client requests can come in, duplicate the files
-		
-		string cmd="cp -r "+ ROOT_PATH + "/fids " + ROOT_PATH + "/users " + ROOT_PATH + "/flwes " + ROOT_PATH + "/flwrs " + ROOT_PATH + "/woots " + FILE_PATH;
-		system(cmd.c_str());
-		
-		close(prim_connfd); // free up that port
-			cout << "  wrote new_rm # " << notify_prim << " to primary" << endl;
-			
-			
-		fprintf(stderr, "Ready to connect!\n");
-		if ((connfd = accept(listenfd, (SA *) NULL, NULL)) == -1) {
-			perror("accept failed");
-			return -1;
-		}
-		fprintf(stderr, "Connected\n");	
-		// if not successful ...?
-	}	
-	return 0;
-}
-
 
 void net_connection(char** argv){	
-	//~ 
-	//~ string base_cmd="ls "+ROOT_PATH;
-	//~ vector<string> local_cmds;
-//~ 
-	//~ for (size_t i=0; i<local_cmds.size(); i++){
-		//~ system(local_cmds[i].c_str());
-	//~ }
-	//~ 
 	int my_port=poll_rm_ports(); // sets am_primary = true if you get the PORT_PRIM
 	int listenfd, connfd;
 	decide_status(connfd, listenfd, my_port);
 	
 	for ( ; ; ) {
-         if(am_primary){	// only ACCEPT more connections if am_primary
-			fprintf(stderr, "Ready to connect!\n");
+         if(am_primary){ // only ACCEPT more connections if am_primary and handling client requests
+			fprintf(stderr, "\tReady to connect!\n");
 			if ((connfd = accept(listenfd, (SA *) NULL, NULL)) == -1) {
 				perror("accept failed");
 				exit(4);
 			}
-			fprintf(stderr, "Connected\n");
+			fprintf(stderr, "\tConnected\n");
 		}
 		
-   		// We had a connection.  Do whatever our task is.
 		char* cmd= new char[MSG_SIZE]; // dynamic array so each thread has its own heap cmd
-		int read_well=read(connfd, cmd, MSG_SIZE);
-		
-		if(read_well==-1){
-			//~ char pause=getchar();
-			//~ SYSTEM("PAUSE");
-			//~ exit(67);
-			
-		}
-		
+		int read_well=read(connfd, cmd, MSG_SIZE);		
 		cmd[MSG_SIZE-1]='\0'; // stringstream's life is easier
-		cout << "Received cmd: " << cmd  << endl << "read_well: " << read_well << endl;
+		cout << "RECEIVED CMD: " << cmd << endl << "bytes read: " << read_well << endl;
 		
-		// ~Functor() only closes connfd if you ARE the primary, and that's a client connfd
-		if(read_well==MSG_SIZE){ // copy connfd by value, so each thread keeps its own connfd
+		if(read_well==MSG_SIZE){ 
 			if(cmd[0]=='n' && cmd[1]=='e' && cmd[2]=='w' && cmd[3]=='_' && cmd[4]=='r' && cmd[5]=='m'){	
-				stringstream port_ss;
-				port_ss.str(string(cmd));
-				string port_str, garbage;
-				port_ss >> garbage >> port_str;
-				close(connfd); // close this client's socket to me
-				
-				//~ close(rm_connfds[stoi(port_str)-PORT_PRIM]); // to be safe?
-				
-				int rm_connfd; // open a socket to the RM's listen socket
-				int success=rm_socket(rm_connfd, stoi(port_str) );
-				if(success >= 0) { 
-					garbage="";
-					garbage="ignore this message";
-					garbage.resize(MSG_SIZE);
-					write(rm_connfd, garbage.c_str(), MSG_SIZE);
-					if(rm_connfds[stoi(port_str)-PORT_PRIM] !=0) { close(rm_connfds[stoi(port_str)-PORT_PRIM]); }
-					//~ close(rm_connfd);
-					//~ rm_socket(rm_connfd, stoi(port_str));
-					cout << "SUCCESS: Adding rm #" << port_str << endl;
-					rm_connfds[stoi(port_str)-PORT_PRIM]=rm_connfd; 
-				}
-				else { close(rm_connfd); }	// report error or handle error?
-			} // if new_rm, do NOT want to close that connfd like every client request does
+				handle_new_rm(cmd, connfd);
+			} 
 			else if(cmd[0]=='p' && cmd[1]=='o' && cmd[2]=='l' && cmd[3]=='l'){
-				cout << " got poll cmd " << endl;
-				close(connfd);
-				if(!am_primary){ // if you're a new RM, and you were waiting for the primary, and got a poll instead
-					// you have to wait again for the primary
-					fprintf(stderr, "Ready to connect!\n");
-					if ((connfd = accept(listenfd, (SA *) NULL, NULL)) == -1) {
-						perror("accept failed");
-						//~ return -1;
-					}
-					fprintf(stderr, "Connected\n");			
-				}
-				// send no reply, but this helps debugging to see what is a poll
+				handle_being_polled(connfd, listenfd);
 			}
-			else{
-				// only write cmds to RM that are not "add new RM". RM does not care about all the other RMs
-				if(am_primary) { write_rms(cmd); } // successful bytes sent mentioned inside
+			else{ // only relay non-RM cmds (poll, new_rm) to the backup RMs
+				if(am_primary) { write_rms(cmd); } 
 				thread client_request([connfd, cmd] { Functor handler(connfd, cmd, MSG_SIZE); });
-				client_request.detach(); // so if main exits we dont crash everything
+				client_request.detach(); 
 			}
-		} // else fails silently	
-		else if(!am_primary && read_well==0) { // primary's connect_rms receives empty "" messages
-			// this assumes only one RM in entire model
-			// also conceptually only become primary if you are no talready
+		}
+		else if(!am_primary && read_well==0) { // read_well==0 when connection from primary terminated
+			cout << "ERROR: " << errno;
 			close(connfd);
 			close(listenfd);
-			
-			// race condition here?
-			// if RM1 gets primary too late, RM2 tries to decide status.. ?
-			// should I while loop?
-			
-			
-			// the actual assuming primary SEEMS to work
-			// but if you run 0_follow_gen everything breaks
-			// try running 0_follow_gen on just primary running
-			// make the decide_status() at the top messes something up
-			
-			// then run it once RM crashes, and see where it fails and what and why
-			
-			
-			// IT APPEARS THAT THE RM_* DIRS ARE NOT BEING CREATED
-			// CHECK IF USING ROOT_PATH INSTEAD OF FILE_PATH HAD ANYTHING TO DO WITH THAT
-			
-			cout << " attempt to prim_listen socket" << endl;
-			if( listen_socket(listenfd, connfd, PORT_PRIM) != -1) {
-				// error check
+			cout << "ATTEMPT: to create a listen socket as primary" << endl;
+			if( listen_socket(listenfd, connfd, PORT_PRIM) != -1) { // error check
 				am_primary=true;		
 				cout << "SUCCESS: RM #" << my_port-PORT_PRIM << " has assumed PRIMARY" << endl;
 				FILE_PATH=ROOT_PATH;
 				my_port=PORT_PRIM;
 			}
 			else{
-				cout << "attempt to pick up a new connfd" << endl;
-				close(connfd); // from listen socket
+				cout << "ATTEMPT: to obtain an RM port, as did not assume primary" << endl;
+				close(connfd); // from listen socket() just now
 				close(listenfd);
-				my_port=poll_rm_ports();
+				my_port=poll_rm_ports(true);
 				int attempts=0;
 				int result=decide_status(connfd, listenfd, my_port);
 				while (result == -1) {
-					cout << "we have a problem" << endl;
-					close(connfd); // from listen socket
+					cout << "FAILURE: attempt # " << attempts << " to obtain an RM port, upon not assuming primary" << endl;
+					close(connfd); // from listen socket() just now
 					close(listenfd);
-					my_port=poll_rm_ports();
+					my_port=poll_rm_ports(true);
 					result=decide_status(connfd, listenfd, my_port);
-					
 				}
-				//~ while( decide_status(connfd, listenfd, my_port) == -1) {
-					//~ my_port=poll_rm_ports();
-					//~ close(connfd);
-					//~ close(listenfd);
-					//~ cout << "ATTEMPT # " << attempts << " to continue after death of primary " << endl;
-					//~ attempts++;
-				//~ }
+				cout << "SUCCESS: obtained RM port # " << my_port << ", after not assuming primary" << endl;
 			}
 		}
-		//~ close(rm_connfd); // only need to tell RM the command, and dont care about any replies
 	}
 	// 6. Close the connection with the current client and go back for another.
 	// 		This step has been moved to the destructor of the Functor class so that
