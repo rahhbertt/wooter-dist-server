@@ -29,3 +29,10 @@
     - Do so by connecting to primary, and telling it and all known RMs to update their lists
     - Would need to store pairs of connection file descriptors with IP addresses
 - Replace the current form of syncing the RM with the primary (calling "cp" on the local files) with a network-appropriate solution ("scp", a custom program, or an expansion to the .cpp).
+
+**Quick Start Instructions :**
+- 1) Pull repo into /var/www/html
+- 2) Run make clean, make, to delete existing user accounts and to compile executable
+- 3) Run "0_follow_gen.php" (by terminal or by web browsing to localhost/0_follow_gen.php)
+- 4) User list is now populated. Run "0_woot_gen.php" to generate woots for them all
+- 5) Login as any test user (username:password pairs defined in 0_follow_gen.php) and explore.
