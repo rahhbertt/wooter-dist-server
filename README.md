@@ -1,9 +1,7 @@
 # Wooter
-##### **CS3254: Parallel & Distributed Systems**
+##### **Parallel & Distributed Systems**
 
 ##### **Semester Long Design Project: Due May 1st, 2015**
-
-##### **Professor: John Sterling**
 
 ##### **Programmer: Robert Ryszewski**
 ------
